@@ -1,0 +1,149 @@
+/* =========================================
+   1. BASE HEADER (Modo Fixed & Hover State)
+   ========================================= */
+#mini-header {
+    position: fixed; top: 0; left: 0; 
+    width: calc(100vw - 16px); 
+    height: 40px;
+    background: #1e1e1e; border-bottom: 1px solid #444;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; z-index: 2000; color: #eee;
+    transition: all 0.2s ease-in-out;
+    box-sizing: border-box;
+}
+
+#annotation-toolbar, .zoom-controls { 
+    pointer-events: auto; 
+    transition: opacity 0.2s; 
+}
+
+.header-left { display: flex; align-items: center; gap: 4px; pointer-events: auto; transition: opacity 0.2s; }
+.header-left button { background: transparent; border: none; color: #ccc; cursor: pointer; padding: 6px; border-radius: 4px; transition: 0.2s; }
+.header-left button:hover { background: #333; color: white; }
+.header-left button svg { width: 16px; height: 16px; }
+
+/* Esconde o grupo da esquerda nos modos certos */
+#mini-header.mode-minimal:not(:hover) .header-left,
+#mini-header.mode-ghost:not(:hover).annotation-active .header-left,
+#mini-header.mode-ghost:not(:hover).eraser-active .header-left {
+    opacity: 0; visibility: hidden; pointer-events: none;
+}
+
+#mini-header.mode-ghost:not(:hover) .header-left {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    background: transparent; padding: 0; border-radius: 0; box-shadow: none;
+    gap: 0;
+}
+
+#mini-header.mode-ghost:not(:hover) .header-left > button,
+#mini-header.mode-ghost:not(:hover) .header-left > .divider {
+    display: none;
+}
+
+#mini-header.mode-ghost:not(:hover) #page-display {
+    opacity: 1; visibility: visible; display: inline-flex; align-items: center;
+    background: rgba(30, 30, 30, 0.9);
+    padding: 4px 10px;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin-left: 8px;
+}
+
+#mini-header.mode-ghost:not(:hover) .zoom-controls,
+#mini-header.mode-ghost:not(:hover) #annotation-toolbar {
+    opacity: 0; visibility: hidden; pointer-events: none;
+}
+
+
+/* =========================================
+   2. REGRAS GERAIS: QUANDO O RATO NÃO ESTÁ NO HEADER
+   ========================================= */
+#mini-header:is(.mode-ghost, .mode-minimal):not(:hover) {
+    background: transparent;
+    border-bottom-color: transparent;
+    pointer-events: none;
+}
+
+#mini-header:is(.mode-ghost, .mode-minimal):not(:hover)::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 40px;
+    pointer-events: auto;
+}
+
+
+#mini-header.mode-ghost:not(:hover) .zoom-controls { opacity: 0; pointer-events: none; }
+
+#mini-header.mode-ghost:not(:hover) #page-display {
+    background: #1e1e1e; padding: 4px 10px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+}
+
+#mini-header.mode-ghost:not(:hover):not(.annotation-active):not(.eraser-active) #annotation-toolbar {
+    opacity: 0; pointer-events: none;
+}
+
+/* =========================================
+   4. MODO MINIMAL (Sem Rato)
+   ========================================= */
+#mini-header.mode-minimal:not(:hover) .zoom-controls,
+#mini-header.mode-minimal:not(:hover) #page-display {
+    opacity: 0; pointer-events: none;
+}
+
+#mini-header.mode-minimal:not(:hover):not(.annotation-active):not(.eraser-active) #annotation-toolbar {
+    opacity: 0; pointer-events: none;
+}
+
+/* =========================================
+   5. A CÁPSULA FLUTUANTE (Para ferramentas ativas)
+   ========================================= */
+#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).annotation-active #annotation-toolbar,
+#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).eraser-active #annotation-toolbar {
+    background: #1e1e1e; padding: 4px 6px; border-radius: 8px;
+    border: 1px solid #444; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.6);
+}
+
+#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).annotation-active #btn-eraser,
+#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).eraser-active #btn-annotate,
+#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).eraser-active #annotation-options {
+    display: none;
+}
+
+/* =========================================
+   6. DESIGN DOS BOTÕES (Toolbar)
+   ========================================= */
+#annotation-toolbar { display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: 16px; }
+
+#annotation-toolbar button, .zoom-controls button, #search-panel button {
+    border: none; background: transparent; color: #ccc; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; transition: background 0.2s, color 0.2s;
+}
+
+#annotation-toolbar button { height: 32px; width: 32px; border: 1px solid transparent; }
+#annotation-toolbar button:hover, .zoom-controls button:hover, #search-panel button:hover { background: #333; color: white; }
+#annotation-toolbar button svg, .zoom-controls button svg, #search-panel button svg { width: 16px; height: 16px; }
+
+#btn-annotate.tool-active, #btn-eraser.tool-active { 
+    color: #ffd740; border-color: #ffd740; background: rgba(255, 215, 64, 0.1); 
+}
+
+#annotation-options {
+    display: flex; align-items: center; gap: 4px; background: #222;
+    padding: 4px 8px; border-radius: 6px; border: 1px solid #444;
+}
+
+#annotation-options.hidden { display: none; }
+#annotation-options .opt-btn { width: 28px; height: 28px; border-radius: 4px; }
+#annotation-options .opt-btn.active { background: #444; color: #ffd740; }
+
+.opt-color {
+    width: 16px !important; height: 16px !important; border-radius: 50% !important;
+    border: 2px solid transparent !important; padding: 0 !important;
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.5); margin: 0 2px;
+}
+.opt-color.active { border-color: white !important; transform: scale(1.3); }
+
+.zoom-controls { display: flex; align-items: center; gap: 4px; }
+.zoom-controls button, #search-panel button { padding: 6px; }
+#page-input, #zoom-percent { background: #444; border: none; color: white; width: 50px; text-align: center; border-radius: 3px; }
+.divider { color: #555; margin: 0 5px; }

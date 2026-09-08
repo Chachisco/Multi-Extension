@@ -1,0 +1,32 @@
+body {
+    margin: 0;
+    padding: 0;
+    background: #323639;
+    height: 100vh;
+    overflow: hidden;
+    font-family: sans-serif;
+}
+
+#viewport { width: 100vw; height: 100vh; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; }
+#pages-container { display: flex; flex-direction: column; align-items: center; padding: 60px 0; transition: transform 0.1s ease-out; }
+.page-wrapper {
+    position: relative;
+    margin-bottom: 30px;
+    background: white;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+    display: block;
+}
+canvas { display: block; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; z-index: 1; }
+
+#lateral-slider {
+    position: fixed;
+    bottom: 5px;
+    left: 14px;
+    width: calc(100% - 34px);
+    z-index: 3000;
+    opacity: 0.3;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.1);
+}
+#lateral-slider:hover { opacity: 1; }
+#lateral-slider::-webkit-slider-thumb { appearance: none; width: 100px; height: 8px; background: #888; border-radius: 4px; }

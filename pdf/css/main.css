@@ -1,0 +1,16 @@
+#search-panel {
+    position: fixed;
+    top: 48px;
+    right: 20px;
+    z-index: 2100;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px;
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 4px;
+}
+#search-panel.hidden { display: none; }
+#search-input { width: 280px; background: #444; border: none; color: white; padding: 6px; border-radius: 3px; }
+#search-counter { color: #ccc; font-size: 12px; min-width: 44px; text-align: center; }

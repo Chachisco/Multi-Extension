@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "PDF Viewer & Better Web Search",
+  "version": "2.0",
+  "description": "Leitor de PDF avançado e pesquisa web múltipla com Regex",
+  "permissions": ["storage", "tabs", "activeTab"],
+  "host_permissions": ["file:///*", "http://*/*", "https://*/*"],
+  "action": {
+    "default_title": "PDF Viewer & Better Web Search"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["search/js/content.js"],
+      "css": ["search/css/content.css"]
+    }
+  ],
+  "commands": {
+    "open-search": {
+      "suggested_key": { "default": "Ctrl+F", "mac": "Command+F" },
+      "description": "Abre a Pesquisa Melhorada"
+    }
+  }
+}
