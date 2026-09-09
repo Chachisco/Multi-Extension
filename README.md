@@ -20,6 +20,8 @@ A custom PDF reader built on top of `pdf.js`, heavily optimized for performance 
   * Create notes anywhere on the document.
   * **Drag & Drop:** Click and hold to move notes fluidly across the page. (*Note: Unable do drag notes between pages*)
   * **Pinning:** Pin notes to keep them open while reading.
+  * **Notes Sidebar:** A left-side tracking bar displays yellow markers for every note in the document. Hover to preview the note's text, or click the marker to scroll directly to the page.
+  * **Copying:** Copy the notes content with one click.
 * **OS-Aware Path Copying:** Easily copy the local path of the PDF. Smart click detection copies standard Windows paths (Left Click) or converts them to Linux/WSL paths (Right Click/Ctrl+Click).
 * **Navigation:** Smooth horizontal sliding and precise "Fit to Width / Fit to Height" zoom controls.
 

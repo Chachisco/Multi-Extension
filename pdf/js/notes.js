@@ -21,7 +21,20 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
     const header = document.createElement('div');
     header.className = 'note-header';
 
-    // Botão de Pin (Fixar)
+    // Botão de Copiar
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.title = 'Copiar texto';
+    copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+    copyBtn.onclick = (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(textarea.value);
+        const originalHTML = copyBtn.innerHTML;
+        copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+        setTimeout(() => { copyBtn.innerHTML = originalHTML; }, 1500);
+    };
+
+    // Botão de Pin
     const pinBtn = document.createElement('button');
     pinBtn.className = 'pin-btn';
     pinBtn.title = 'Manter aberta';
@@ -29,7 +42,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
     pinBtn.onclick = (e) => {
         e.stopPropagation();
         const pinned = note.classList.toggle('pinned');
-        note.classList.toggle('active', pinned); // Se pinar, fica ativa!
+        note.classList.toggle('active', pinned);
         saveNotesForPage(pageNum, overlay);
     };
 
@@ -48,6 +61,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
     textarea.value = text;
     textarea.placeholder = 'Escreve a tua nota...';
 
+    header.appendChild(copyBtn);
     header.appendChild(pinBtn);
     header.appendChild(delBtn);
     popup.appendChild(header);
