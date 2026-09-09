@@ -74,7 +74,7 @@ Because you are installing in Developer Mode, the browser should automatically o
 
 This repository contains the **All-in-One** Mega Extension. However, if you prefer to use these tools separately, you can find their individual repositories below:
 
-* 📄 **[UniPDF Pro (Standalone Viewer)](https://github.com/Chachisco/PDF_extension)**: The pure PDF reader without the custom search engine.
+* 📄 **[Better PDF Viewer (Standalone Viewer)](https://github.com/Chachisco/PDF_extension)**: The pure PDF reader without the custom search engine.
 * 🔍 **[Better Web Search (Standalone)](https://github.com/Chachisco/Search-Extension)**: The advanced web search extension, ready to be injected into any standard website.
 
 *(Note: The standalone versions do not share cross-integration features. This means the custom search engine will not be available inside the standalone PDF Viewer).*
