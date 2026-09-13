@@ -145,11 +145,10 @@ async function loadOutline() {
     }
 }
 
-// 4. DESENHAR AS MINIATURAS (THUMBNAILS)
 async function renderThumbnails() {
     if (!state.pdfDoc) return;
     thumbnailsRendered = true;
-    viewThumbnails.innerHTML = ''; // Limpa
+    viewThumbnails.innerHTML = '';
 
     for (let i = 1; i <= state.pdfDoc.numPages; i++) {
         const thumbWrapper = document.createElement('div');
@@ -165,18 +164,15 @@ async function renderThumbnails() {
         thumbWrapper.appendChild(label);
         viewThumbnails.appendChild(thumbWrapper);
 
-        // Ao clicar numa miniatura, salta para lá!
         thumbWrapper.onclick = () => {
             if (document.getElementById(`page-wrapper-${i}`)) {
                 scrollToPage(i);
 
-                // Marca esta miniatura como a ativa visualmente
                 document.querySelectorAll('.thumbnail-wrapper').forEach(w => w.classList.remove('active'));
                 thumbWrapper.classList.add('active');
             }
         };
 
-        // Renderiza o canvas a 20% do tamanho real para poupar RAM
         state.pdfDoc.getPage(i).then(page => {
             const viewport = page.getViewport({ scale: 0.2 });
             canvas.width = viewport.width;
