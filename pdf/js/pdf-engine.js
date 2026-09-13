@@ -159,7 +159,6 @@ export async function updateZoom(newScale) {
         const totalPages = state.pdfDoc.numPages;
         const pagePromises = [];
         
-        // 1. Pedir a geometria nova de todas as páginas em simultâneo
         for (let i = 1; i <= totalPages; i++) {
             pagePromises.push(state.pdfDoc.getPage(i));
         }
@@ -172,12 +171,8 @@ export async function updateZoom(newScale) {
             const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
             
             if (wrapper) {
-
                 wrapper.style.width = `${Math.floor(vp.width)}px`;
                 wrapper.style.height = `${Math.floor(vp.height)}px`;
-
-                wrapper.innerHTML = '<canvas></canvas><div class="pdf-links-layer"></div><div class="annotation-layer"></div><div class="textLayer"></div><div class="notes-overlay"></div>';
-                container.appendChild(wrapper);
                 
                 wrapper.dataset.rendered = 'false'; 
                 
