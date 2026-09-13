@@ -30,7 +30,6 @@ async function getOutlinePageNumber(item) {
     return (await state.pdfDoc.getPageIndex(destination[0])) + 1;
 }
 
-// 1. ABRIR E FECHAR A GAVETA
 if (btnToggle) {
     btnToggle.onclick = () => {
         sidebar.classList.toggle('closed');
@@ -40,7 +39,6 @@ if (btnToggle) {
     };
 }
 
-// 2. MUDAR DE ABAS
 tabOutline.onclick = () => {
     tabOutline.classList.add('active'); tabThumbnails.classList.remove('active');
     viewOutline.classList.remove('hidden'); viewThumbnails.classList.add('hidden');
@@ -52,7 +50,6 @@ tabThumbnails.onclick = () => {
     if (!thumbnailsRendered) renderThumbnails(); // Só desenha as fotos das páginas na primeira vez!
 };
 
-// 3. CARREGAR O ÍNDICE NATIVO (OUTLINE)
 async function loadOutline() {
     if (!state.pdfDoc || viewOutline.innerHTML !== '') return;
     
@@ -64,14 +61,13 @@ async function loadOutline() {
             return;
         }
 
-        // Função recursiva para desenhar o índice com a indentação correta
         const renderItems = (items, depth = 0) => {
             items.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'outline-item';
                 div.textContent = item.title;
                 div.title = item.title;
-                div.style.paddingLeft = `${depth * 15 + 8}px`; // Recua se for sub-capítulo
+                div.style.paddingLeft = `${depth * 15 + 8}px`;
 
                     div.onclick = async () => {
                         try {
@@ -84,7 +80,6 @@ async function loadOutline() {
                 
                 viewOutline.appendChild(div);
                 
-                // Se tiver sub-capítulos, renderiza-os também!
                 if (item.items && item.items.length > 0) {
                     renderItems(item.items, depth + 1);
                 }
@@ -97,11 +92,10 @@ async function loadOutline() {
     }
 }
 
-// 4. DESENHAR AS MINIATURAS (THUMBNAILS)
 async function renderThumbnails() {
     if (!state.pdfDoc) return;
     thumbnailsRendered = true;
-    viewThumbnails.innerHTML = ''; // Limpa
+    viewThumbnails.innerHTML = '';
 
     for (let i = 1; i <= state.pdfDoc.numPages; i++) {
         const thumbWrapper = document.createElement('div');
@@ -117,18 +111,15 @@ async function renderThumbnails() {
         thumbWrapper.appendChild(label);
         viewThumbnails.appendChild(thumbWrapper);
 
-        // Ao clicar numa miniatura, salta para lá!
         thumbWrapper.onclick = () => {
             if (document.getElementById(`page-wrapper-${i}`)) {
                 scrollToPage(i);
 
-                // Marca esta miniatura como a ativa visualmente
                 document.querySelectorAll('.thumbnail-wrapper').forEach(w => w.classList.remove('active'));
                 thumbWrapper.classList.add('active');
             }
         };
 
-        // Renderiza o canvas a 20% do tamanho real para poupar RAM
         state.pdfDoc.getPage(i).then(page => {
             const viewport = page.getViewport({ scale: 0.2 });
             canvas.width = viewport.width;
