@@ -11,10 +11,13 @@
 </head>
 <body>
     <div id="notes-sidebar"></div>
-    <div id="pdf-sidebar" class="closed">
+    <div id="pdf-sidebar" class="pos-left closed">
         <div class="sidebar-tabs">
             <button id="tab-outline" class="active">Índice</button>
             <button id="tab-thumbnails">Páginas</button>
+            <button id="btn-sidebar-side" title="Mudar lado (M)" style="flex: 0 0 40px; border-left: 1px solid #333;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; margin: 0 auto; display: block;"><path d="M17 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><path d="M9 3v18"/></svg>
+            </button>
         </div>
         <div class="sidebar-content">
             <div id="outline-view"></div>
