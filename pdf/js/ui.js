@@ -232,6 +232,4 @@ function handleKeydown(event) {
             viewport.scrollTo({ top: y, behavior: 'smooth' });
         }
     }
-
-    if (event.key === 'ArrowLeft') {
 }
