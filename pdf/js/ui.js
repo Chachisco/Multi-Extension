@@ -76,8 +76,7 @@ export function setupUI() {
             const currentPg = parseInt(pageInput.value, 10);
             const overlay = document.querySelector(`#page-wrapper-${currentPg} .notes-overlay`);
             if (overlay) {
-                // Cria a nota a 50% de largura (Centro) e 10% de altura (Topo)
-                addNoteToUI(overlay, currentPg, 50, 10, '', true);
+                addNoteToUI(overlay, currentPg, 50, 10, '', false);
             }
         };
     }
@@ -95,6 +94,19 @@ export function setupUI() {
             viewport.scrollTo({ top: y, behavior: 'smooth' });
         }
     };
+
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+    if (btnFullscreen) {
+        btnFullscreen.onclick = () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Erro ao ativar Fullscreen: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        };
+    }
 }
 
 function handleCopy(e, isLinux, btnElement) {
@@ -197,7 +209,7 @@ function handleKeydown(event) {
 
     const currentPage = getCurrentPageNumber();
 
-    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    if (event.key === 'ArrowRight') {
         event.preventDefault();
         const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
         const wrapper = document.getElementById(`page-wrapper-${next}`);
@@ -209,7 +221,7 @@ function handleKeydown(event) {
         }
     }
 
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    if (event.key === 'ArrowLeft') {
         event.preventDefault();
         const prev = Math.max(1, currentPage - 1);
         const wrapper = document.getElementById(`page-wrapper-${prev}`);
