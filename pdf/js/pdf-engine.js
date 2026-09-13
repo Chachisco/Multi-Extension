@@ -106,7 +106,7 @@ export async function renderPage(pageNum) {
                     executeNamedAction: (action) => console.log("Ação:", action),
                     addLinkAttributes: (link, url, newWindow) => {
                         link.href = url;
-                        link.target = newWindow ? '_blank' : '';
+                        link.target = url ? '_blank' : '';
                         link.rel = 'noopener noreferrer nofollow';
                     }
                 };
