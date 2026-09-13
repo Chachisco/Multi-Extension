@@ -30,17 +30,15 @@ async function getOutlinePageNumber(item) {
     return (await state.pdfDoc.getPageIndex(destination[0])) + 1;
 }
 
-// 1. ABRIR E FECHAR A GAVETA
 if (btnToggle) {
     btnToggle.onclick = () => {
         sidebar.classList.toggle('closed');
         if (!sidebar.classList.contains('closed')) {
-            loadOutline(); // Tenta carregar o índice quando abre
+            loadOutline();
         }
     };
 }
 
-// 2. MUDAR DE ABAS
 tabOutline.onclick = () => {
     tabOutline.classList.add('active'); tabThumbnails.classList.remove('active');
     viewOutline.classList.remove('hidden'); viewThumbnails.classList.add('hidden');
@@ -49,8 +47,35 @@ tabOutline.onclick = () => {
 tabThumbnails.onclick = () => {
     tabThumbnails.classList.add('active'); tabOutline.classList.remove('active');
     viewThumbnails.classList.remove('hidden'); viewOutline.classList.add('hidden');
-    if (!thumbnailsRendered) renderThumbnails(); // Só desenha as fotos das páginas na primeira vez!
+    if (!thumbnailsRendered) renderThumbnails();
 };
+
+export function toggleSidebarSide() {
+    const isLeft = sidebar.classList.contains('pos-left');
+    sidebar.classList.toggle('pos-left', !isLeft);
+    sidebar.classList.toggle('pos-right', isLeft);
+}
+
+const btnSide = document.getElementById('btn-sidebar-side');
+if (btnSide) {
+    btnSide.onclick = toggleSidebarSide;
+}
+
+window.addEventListener('keydown', (e) => {
+    if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') return;
+
+    if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        sidebar.classList.remove('pos-left');
+        sidebar.classList.add('pos-right');
+    }
+    
+    if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        sidebar.classList.remove('pos-right');
+        sidebar.classList.add('pos-left');
+    }
+});
 
 // 3. CARREGAR O ÍNDICE NATIVO (OUTLINE)
 async function loadOutline() {
@@ -64,16 +89,44 @@ async function loadOutline() {
             return;
         }
 
-        // Função recursiva para desenhar o índice com a indentação correta
-        const renderItems = (items, depth = 0) => {
+        const renderItems = (items, depth = 0, target = viewOutline) => {
             items.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'outline-item';
-                div.textContent = item.title;
-                div.title = item.title;
-                div.style.paddingLeft = `${depth * 15 + 8}px`; // Recua se for sub-capítulo
+                const hasChildren = item.items && item.items.length > 0;
+                const group = document.createElement('div');
+                group.className = 'outline-group';
 
-                    div.onclick = async () => {
+                const row = document.createElement('div');
+                row.className = 'outline-item';
+                row.style.paddingLeft = `${depth * 15 + 8}px`; // Recua se for sub-capítulo
+
+                if (hasChildren) {
+                    const toggle = document.createElement('button');
+                    toggle.className = 'outline-toggle';
+                    toggle.type = 'button';
+                    toggle.textContent = '-';
+                    toggle.setAttribute('aria-label', `Recolher ${item.title}`);
+
+                    const children = document.createElement('div');
+                    children.className = 'outline-children';
+                    toggle.onclick = event => {
+                        event.stopPropagation();
+                        const collapsed = children.classList.toggle('collapsed');
+                        toggle.textContent = collapsed ? '+' : '-';
+                        toggle.setAttribute('aria-label', `${collapsed ? 'Expandir' : 'Recolher'} ${item.title}`);
+                    };
+                    row.appendChild(toggle);
+                    group.appendChild(row);
+
+                    row.insertAdjacentText('beforeend', item.title);
+                    renderItems(item.items, depth + 1, children);
+                    group.appendChild(children);
+                } else {
+                    row.textContent = item.title;
+                    group.appendChild(row);
+                }
+
+                row.title = item.title;
+                row.onclick = async () => {
                         try {
                             const pageNum = await getOutlinePageNumber(item);
                             if (pageNum) scrollToPage(pageNum);
@@ -81,17 +134,12 @@ async function loadOutline() {
                             console.error('Erro ao navegar para o item do índice', error);
                         }
                 };
-                
-                viewOutline.appendChild(div);
-                
-                // Se tiver sub-capítulos, renderiza-os também!
-                if (item.items && item.items.length > 0) {
-                    renderItems(item.items, depth + 1);
-                }
+
+                target.appendChild(group);
             });
         };
         
-        renderItems(outline);
+        renderItems(outline, 0, viewOutline);
     } catch (e) {
         console.error("Erro ao carregar o Índice", e);
     }

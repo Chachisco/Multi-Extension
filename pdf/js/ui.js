@@ -209,7 +209,7 @@ function handleKeydown(event) {
 
     const currentPage = getCurrentPageNumber();
 
-    if (event.key === 'ArrowRight') {
+    if (event.key === 'ArrowRight' && !event.altKey) {
         event.preventDefault();
         const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
         const wrapper = document.getElementById(`page-wrapper-${next}`);
@@ -221,7 +221,7 @@ function handleKeydown(event) {
         }
     }
 
-    if (event.key === 'ArrowLeft') {
+    if (event.key === 'ArrowLeft' && !event.altKey) {
         event.preventDefault();
         const prev = Math.max(1, currentPage - 1);
         const wrapper = document.getElementById(`page-wrapper-${prev}`);
@@ -232,4 +232,6 @@ function handleKeydown(event) {
             viewport.scrollTo({ top: y, behavior: 'smooth' });
         }
     }
+
+    if (event.key === 'ArrowLeft') {
 }

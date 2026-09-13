@@ -1,13 +1,33 @@
 #pdf-sidebar {
-    position: fixed; top: 40px; left: 8px; /* Fica ao lado dos marcadores de notas */
-    width: 250px; height: calc(100vh - 40px);
-    background: #252526; border-right: 1px solid #333;
-    z-index: 1400; display: flex; flex-direction: column;
-    transition: transform 0.3s ease; box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+    position: fixed;
+    top: 40px;
+    width: 250px;
+    height: calc(100vh - 40px);
+    background: #252526;
+    z-index: 1400;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
 }
 
-#pdf-sidebar.closed {
+#pdf-sidebar.pos-left {
+    left: 8px;
+    border-right: 1px solid #333;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+}
+
+#pdf-sidebar.pos-left.closed {
     transform: translateX(-110%);
+}
+
+#pdf-sidebar.pos-right {
+    right: 15px;
+    border-left: 1px solid #333;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.3);
+}
+
+#pdf-sidebar.pos-right.closed {
+    transform: translateX(110%);
 }
 
 .sidebar-tabs {
@@ -24,6 +44,7 @@
 .sidebar-content {
     flex: 1; overflow-y: auto; overflow-x: hidden;
     padding: 10px; scrollbar-width: thin;
+    scrollbar-color: #555 #1e1e1e;
 }
 .hidden { display: none !important; }
 
@@ -32,9 +53,17 @@
     color: #ccc; font-family: sans-serif; font-size: 13px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     margin-bottom: 2px;
+    display: flex; align-items: center; gap: 4px;
 }
 .outline-item:hover { background: #333; color: #fff; }
 .outline-item.italic { font-style: italic; color: #888; pointer-events: none; }
+.outline-toggle {
+    flex: 0 0 16px; width: 16px; height: 16px; padding: 0;
+    border: 1px solid #666; border-radius: 3px; background: transparent;
+    color: #bbb; cursor: pointer; font: 12px/14px sans-serif;
+}
+.outline-toggle:hover { border-color: #aaa; color: #ffffff; background: #444; }
+.outline-children.collapsed { display: none; }
 
 #thumbnails-view {
     display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
