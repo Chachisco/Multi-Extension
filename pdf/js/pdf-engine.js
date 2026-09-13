@@ -41,7 +41,7 @@ export async function loadPDF(source, filename) {
         wrapper.style.width = `${Math.floor(vp.width)}px`;
         wrapper.style.height = `${Math.floor(vp.height)}px`;
         
-        wrapper.innerHTML = '<canvas></canvas><div class="annotation-layer"></div><div class="textLayer"></div><div class="notes-overlay"></div>';
+        wrapper.innerHTML = '<canvas></canvas><div class="pdf-links-layer"></div><div class="annotation-layer"></div><div class="textLayer"></div><div class="notes-overlay"></div>';
         container.appendChild(wrapper);
     });
 
@@ -90,6 +90,40 @@ export async function renderPage(pageNum) {
         wrapper.dataset.scale = state.currentScale;
         loadNotesForPage(pageNum);
         loadAnnotationsForPage(pageNum);
+
+        const linksLayerDiv = wrapper.querySelector('.pdf-links-layer');
+        linksLayerDiv.innerHTML = ''; // Limpa links antigos
+
+        try {
+            const annotationsData = await page.getAnnotations();
+            const linkAnnotations = annotationsData.filter(a => a.subtype === 'Link');
+            
+            const linkService = {
+                    getDestinationHash: (dest) => dest,
+                    navigateTo: (dest) => console.log("Navegar para:", dest),
+                    getAnchorUrl: (url) => url || "",
+                    setDocument: () => {},
+                    executeNamedAction: (action) => console.log("Ação:", action),
+                    addLinkAttributes: (link, url, newWindow) => {
+                        link.href = url;
+                        link.target = newWindow ? '_blank' : '';
+                        link.rel = 'noopener noreferrer nofollow';
+                    }
+                };
+
+            const annotationLayer = new pdfjsLib.AnnotationLayer({
+                viewport: pageViewport,
+                div: linksLayerDiv,
+                page,
+                linkService
+            });
+            await annotationLayer.render({
+                annotations: linkAnnotations,
+                downloadManager: null
+            });
+        } catch (linkError) {
+            console.warn("Erro ao renderizar links nativos:", linkError);
+        }
     } catch (error) {
         if (error.name !== 'RenderingCancelledException') console.error(error);
     } finally {
@@ -141,6 +175,9 @@ export async function updateZoom(newScale) {
 
                 wrapper.style.width = `${Math.floor(vp.width)}px`;
                 wrapper.style.height = `${Math.floor(vp.height)}px`;
+
+                wrapper.innerHTML = '<canvas></canvas><div class="pdf-links-layer"></div><div class="annotation-layer"></div><div class="textLayer"></div><div class="notes-overlay"></div>';
+                container.appendChild(wrapper);
                 
                 wrapper.dataset.rendered = 'false'; 
                 
