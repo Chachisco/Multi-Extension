@@ -107,6 +107,65 @@ export function setupUI() {
             }
         };
     }
+
+    let isBoldMode = false;
+    let focusMode = 0; 
+    window.focusY = window.innerHeight / 2;
+    
+    // NOVO: Estado do Tamanho do Foco
+    let focusSize = 150; // Começa com 150px (Lanterna) ou 25px (Linha)
+
+    const btnBold = document.getElementById('btn-bold-mode');
+    const btnFocus = document.getElementById('btn-focus-mode');
+    const readingRuler = document.getElementById('reading-ruler');
+
+    if (btnFocus) {
+        btnFocus.onclick = () => {
+            focusMode = (focusMode + 1) % 3;
+            btnFocus.style.color = focusMode > 0 ? '#80d8ff' : '#ccc'; 
+            
+            readingRuler.className = ''; 
+            
+            if (focusMode === 1) {
+                focusSize = 150;
+                readingRuler.classList.add('mode-lantern');
+            }
+            if (focusMode === 2) {
+                focusSize = 25;
+                readingRuler.classList.add('mode-line');
+            }
+            
+            readingRuler.style.setProperty('--focus-size', `${focusSize}px`);
+            readingRuler.style.setProperty('--mouse-y', `${window.focusY}px`);
+        };
+    }
+
+    document.addEventListener('mousemove', (e) => {
+        if (focusMode > 0) {
+            window.focusY = e.clientY;
+            readingRuler.style.setProperty('--mouse-x', `${e.clientX}px`);
+            readingRuler.style.setProperty('--mouse-y', `${window.focusY}px`);
+        }
+    }, { passive: true });
+
+    window.addEventListener('wheel', event => {
+        if (event.ctrlKey) {
+            event.preventDefault();
+            updateZoom(state.currentScale + (event.deltaY > 0 ? -0.1 : 0.1));
+            return;
+        }
+        
+        if (event.shiftKey && focusMode > 0) {
+            event.preventDefault();
+
+            if (event.deltaY > 0) {
+                focusSize = Math.max(10, focusSize - 10); 
+            } else {
+                focusSize = Math.min(500, focusSize + 10); 
+            }
+            readingRuler.style.setProperty('--focus-size', `${focusSize}px`);
+        }
+    }, { passive: false });
 }
 
 function handleCopy(e, isLinux, btnElement) {
@@ -179,6 +238,11 @@ function getCurrentPageNumber() {
     return bestPage;
 }
 
+function getFocusLineHeight(ruler) {
+    const value = parseFloat(getComputedStyle(ruler).getPropertyValue('--focus-line-height'));
+    return Number.isFinite(value) ? value : 50;
+}
+
 function handleKeydown(event) {
     if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') {
         if (event.key === 'Escape') document.activeElement.blur();
@@ -230,6 +294,40 @@ function handleKeydown(event) {
             pageInput.value = prev;
             const y = wrapper.offsetTop - 42;
             viewport.scrollTo({ top: y, behavior: 'smooth' });
+        }
+    }
+
+     if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        const ruler = document.getElementById('reading-ruler');
+        
+        // Apenas a linha de foco desloca o viewport pelo tamanho da própria linha.
+        if (ruler?.classList.contains('mode-line')) {
+            document.getElementById('viewport').scrollBy({ top: getFocusLineHeight(ruler), behavior: 'smooth' });
+        } else {
+            // Se NÃO estiver ativa, salta para a próxima página
+            const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
+            const wrapper = document.getElementById(`page-wrapper-${next}`);
+            if (wrapper) { 
+                pageInput.value = next; 
+                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 42, behavior: 'smooth' });
+            }
+        }
+    }
+
+    if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        const ruler = document.getElementById('reading-ruler');
+        
+        if (ruler?.classList.contains('mode-line')) {
+            document.getElementById('viewport').scrollBy({ top: -getFocusLineHeight(ruler), behavior: 'smooth' });
+        } else {
+            const prev = Math.max(1, currentPage - 1);
+            const wrapper = document.getElementById(`page-wrapper-${prev}`);
+            if (wrapper) { 
+                pageInput.value = prev; 
+                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 42, behavior: 'smooth' });
+            }
         }
     }
 }

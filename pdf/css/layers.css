@@ -151,3 +151,33 @@
 .pdf-links-layer section a {
     display: block; width: 100%; height: 100%;
 }
+
+#reading-ruler {
+    position: fixed; left: 0; top: 0; width: 100vw; height: 100vh;
+    pointer-events: none; z-index: 1999;
+    display: none;
+    transition: background 0.1s ease-out;
+    /* Tamanhos por defeito caso o JS falhe */
+    --focus-size: 150px; 
+}
+
+#reading-ruler.mode-lantern {
+    display: block;
+    background: radial-gradient(
+        circle var(--focus-size) at var(--mouse-x, 50%) var(--mouse-y, 50%), 
+        transparent 0%, rgba(0, 0, 0, 0.5) 100%
+    );
+}
+
+#reading-ruler.mode-line {
+    display: block;
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.5) 0%,
+        rgba(0, 0, 0, 0.5) calc(var(--mouse-y) - var(--focus-size)),
+        transparent calc(var(--mouse-y) - var(--focus-size)),
+        transparent calc(var(--mouse-y) + var(--focus-size)),
+        rgba(0, 0, 0, 0.5) calc(var(--mouse-y) + var(--focus-size)),
+        rgba(0, 0, 0, 0.5) 100%
+    );
+}
