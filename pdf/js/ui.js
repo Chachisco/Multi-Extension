@@ -192,6 +192,12 @@ function setupGlobalEvents() {
             }
         }
     }, { passive: false });
+
+    header.addEventListener('wheel', event => {
+        if (event.ctrlKey) return; 
+        event.preventDefault(); 
+        header.scrollLeft += event.deltaY; 
+    }, { passive: false });
 }
 
 function handleKeydown(event) {
