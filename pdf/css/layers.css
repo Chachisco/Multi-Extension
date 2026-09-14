@@ -161,11 +161,16 @@
     --focus-size: 150px; 
 }
 
+/*tentar simular um decaimento exponencial*/
 #reading-ruler.mode-lantern {
     display: block;
     background: radial-gradient(
         circle var(--focus-size) at var(--mouse-x, 50%) var(--mouse-y, 50%), 
-        transparent 0%, rgba(0, 0, 0, 0.5) 100%
+        transparent 0%, 
+        transparent 40%,        
+        rgba(0, 0, 0, 0.15) 60%,
+        rgba(0, 0, 0, 0.4) 90%,
+        rgba(0, 0, 0, 0.6) 100%
     );
 }
 
@@ -173,11 +178,11 @@
     display: block;
     background: linear-gradient(
         to bottom,
-        rgba(0, 0, 0, 0.5) 0%,
-        rgba(0, 0, 0, 0.5) calc(var(--mouse-y) - var(--focus-size)),
-        transparent calc(var(--mouse-y) - var(--focus-size)),
-        transparent calc(var(--mouse-y) + var(--focus-size)),
-        rgba(0, 0, 0, 0.5) calc(var(--mouse-y) + var(--focus-size)),
-        rgba(0, 0, 0, 0.5) 100%
+        rgba(0, 0, 0, 0.6) 0%,
+        rgba(0, 0, 0, 0.6) calc(var(--mouse-y) - var(--focus-size)),
+        transparent calc(var(--mouse-y) - var(--focus-size) + 10px),
+        transparent calc(var(--mouse-y) + var(--focus-size) - 10px),
+        rgba(0, 0, 0, 0.6) calc(var(--mouse-y) + var(--focus-size)),
+        rgba(0, 0, 0, 0.6) 100%
     );
 }
