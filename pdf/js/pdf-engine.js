@@ -64,26 +64,32 @@ export async function renderPage(pageNum) {
         const pageViewport = page.getViewport({ scale: state.currentScale });
         const canvas = wrapper.querySelector('canvas');
         const context = canvas.getContext('2d', { alpha: false });
-        canvas.width = Math.floor(pageViewport.width * dpr);
-        canvas.height = Math.floor(pageViewport.height * dpr);
-        canvas.style.width = `${Math.floor(pageViewport.width)}px`;
-        canvas.style.height = `${Math.floor(pageViewport.height)}px`;
-        wrapper.style.width = canvas.style.width;
-        wrapper.style.height = canvas.style.height;
-        if (state.renderTasks[pageNum]) state.renderTasks[pageNum].cancel();
-        const renderTask = page.render({ canvasContext: context, viewport: pageViewport, transform: [dpr, 0, 0, dpr, 0, 0] });
-        state.renderTasks[pageNum] = renderTask;
-        await renderTask.promise;
-
         const textLayerDiv = wrapper.querySelector('.textLayer');
-        textLayerDiv.innerHTML = '';
-        textLayerDiv.style.setProperty('--scale-factor', state.currentScale);
-        textLayerDiv.style.setProperty('--total-scale-factor', state.currentScale);
         const textLayer = new pdfjsLib.TextLayer({
             textContentSource: await page.getTextContent(),
             container: textLayerDiv,
             viewport: pageViewport
         });
+        const linksLayerDiv = wrapper.querySelector('.pdf-links-layer');
+
+        canvas.width = Math.floor(pageViewport.width * dpr);
+        canvas.height = Math.floor(pageViewport.height * dpr);
+        canvas.style.width = `${Math.floor(pageViewport.width)}px`;
+        canvas.style.height = `${Math.floor(pageViewport.height)}px`;
+
+        wrapper.style.width = canvas.style.width;
+        wrapper.style.height = canvas.style.height;
+
+        if (state.renderTasks[pageNum]){state.renderTasks[pageNum].cancel();}
+        const renderTask = page.render({ canvasContext: context, viewport: pageViewport, transform: [dpr, 0, 0, dpr, 0, 0] });
+        state.renderTasks[pageNum] = renderTask;
+        await renderTask.promise;
+
+
+        textLayerDiv.innerHTML = '';
+        textLayerDiv.style.setProperty('--scale-factor', state.currentScale);
+        textLayerDiv.style.setProperty('--total-scale-factor', state.currentScale);
+
         state.textLayerTasks[pageNum] = textLayer;
         await textLayer.render();
         wrapper.dataset.rendered = 'true';
@@ -91,7 +97,6 @@ export async function renderPage(pageNum) {
         loadNotesForPage(pageNum);
         loadAnnotationsForPage(pageNum);
 
-        const linksLayerDiv = wrapper.querySelector('.pdf-links-layer');
         linksLayerDiv.innerHTML = ''; // Limpa links antigos
 
         try {
