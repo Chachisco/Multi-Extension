@@ -1,7 +1,7 @@
 import { state } from './state.js';
 import { saveState } from './storage.js';
 import { applyAnnotation } from './annotations.js';
-import { updateZoom, fitWidth, fitHeight } from './pdf-engine.js';
+import { updateZoom, fitWidth, fitHeight, rotatePages } from './pdf-engine.js';
 import { addNoteToUI } from './notes.js';
 import { undo, redo } from './history.js';
 import { setupDrawingTools } from './drawing.js';
@@ -87,6 +87,8 @@ export function setupUI() {
     document.getElementById('btn-zoom-out').onclick = () => updateZoom(state.currentScale - 0.1);
     document.getElementById('btn-fit-width').onclick = fitWidth;
     document.getElementById('btn-fit-height').onclick = fitHeight;
+    document.getElementById('btn-rotate-ccw').onclick = () => rotatePages(-90);
+    document.getElementById('btn-rotate-cw').onclick = () => rotatePages(90);
     zoomInput.onkeydown = event => {
         if (event.key !== 'Enter') return;
         const value = parseInt(zoomInput.value, 10);

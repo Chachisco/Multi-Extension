@@ -1,12 +1,13 @@
-import * as pdfjsLib from '../lib/pdf.mjs';
+import * as pdfjsLib from '../lib/build/pdf.mjs';
 import { state } from './state.js';
 import { loadAnnotationsForPage } from './annotations.js';
 import { loadNotesForPage } from './notes.js';
 import { saveState } from './storage.js';
 import { activate as activateHistory } from './history.js';
 import { initDrawingLayer, resizeDrawingCanvas, loadDrawingsForPage } from './drawing.js';
+import { TextLayerBuilder } from './text-layer-builder.js';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/build/pdf.worker.mjs';
 
 const container = document.getElementById('pages-container');
 const viewport = document.getElementById('viewport');
@@ -42,6 +43,7 @@ export async function loadPDF(source, filename) {
     state.renderTasks = {};
     state.renderingStates = {};
     state.textLayerTasks = {};
+    state.pageRotation = 0;
     state.drawings = {};
     state.annotationLoadVersions = {};
     state.pendingAnnotationRemovals = new Map();
@@ -50,7 +52,14 @@ export async function loadPDF(source, filename) {
     state.currentFilename = filename;
     activateHistory(filename);
     document.title = filename || 'UniPDF Pro';
-    const loadingTask = pdfjsLib.getDocument(typeof source === 'string' ? { url: source } : { data: source });
+    const documentSource = typeof source === 'string' ? { url: source } : { data: source };
+    const loadingTask = pdfjsLib.getDocument({
+        ...documentSource,
+        cMapUrl: './lib/web/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: './lib/web/standard_fonts/',
+        wasmUrl: './lib/web/wasm/'
+    });
     state.pdfDoc = await loadingTask.promise;
     
     const totalPages = state.pdfDoc.numPages;
@@ -64,11 +73,12 @@ export async function loadPDF(source, filename) {
     }
     const pages = await Promise.all(pagePromises);
     pages.forEach((page, index) => pageCache.set(index + 1, page));
+    window.dispatchEvent(new CustomEvent('pdf-document-loaded'));
 
     // 2. Criar as caixas com as medidas reais de cada uma
     pages.forEach((page, index) => {
         const pageNum = index + 1;
-        const vp = page.getViewport({ scale: state.currentScale });
+        const vp = page.getViewport({ scale: state.currentScale, rotation: state.pageRotation });
 
         const wrapper = document.createElement('div');
         wrapper.className = 'page-wrapper';
@@ -100,15 +110,15 @@ export async function renderPage(pageNum) {
     const dpr = window.devicePixelRatio || 1;
     try {
         const page = await getPage(pageNum);
-        const pageViewport = page.getViewport({ scale: state.currentScale });
+        const pageViewport = page.getViewport({ scale: state.currentScale, rotation: state.pageRotation });
         const canvas = wrapper.querySelector('canvas:not(.drawing-canvas)');
         const context = canvas.getContext('2d', { alpha: false });
         const textLayerDiv = wrapper.querySelector('.textLayer');
-        const textLayer = new pdfjsLib.TextLayer({
-            textContentSource: await page.getTextContent(),
-            container: textLayerDiv,
-            viewport: pageViewport
-        });
+        const textLayer = new TextLayerBuilder({ pdfPage: page });
+        textLayer.div = textLayerDiv;
+        textLayerDiv.style.setProperty('--total-scale-factor', state.currentScale);
+        textLayerDiv.style.setProperty('--min-font-size', '1');
+        textLayerDiv.style.setProperty('--min-font-size-inv', '1');
         const linksLayerDiv = wrapper.querySelector('.pdf-links-layer');
 
         canvas.width = Math.floor(pageViewport.width * dpr);
@@ -127,12 +137,8 @@ export async function renderPage(pageNum) {
         await renderTask.promise;
 
 
-        textLayerDiv.innerHTML = '';
-        textLayerDiv.style.setProperty('--scale-factor', state.currentScale);
-        textLayerDiv.style.setProperty('--total-scale-factor', state.currentScale);
-
         state.textLayerTasks[pageNum] = textLayer;
-        await textLayer.render();
+        await textLayer.render({ viewport: pageViewport });
 
         wrapper.dataset.rendered = 'true';
         wrapper.dataset.scale = state.currentScale;
@@ -174,6 +180,7 @@ function setupObserver() {
         const pageNum = parseInt(entry.target.dataset.pageNumber, 10);
         renderPage(pageNum);
         pageInput.value = pageNum;
+        window.dispatchEvent(new CustomEvent('pdf-page-changed', { detail: { pageNum } }));
         if (pageNum !== lastStoredPage) {
             lastStoredPage = pageNum;
             chrome.storage.local.set({ [state.currentFilename]: pageNum });
@@ -193,7 +200,7 @@ export function renderVisiblePages() {
 }
 
 function updatePageGeometry(page, pageNum) {
-    const vp = page.getViewport({ scale: state.currentScale });
+    const vp = page.getViewport({ scale: state.currentScale, rotation: state.pageRotation });
     const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
 
     if (!wrapper) return;
@@ -252,10 +259,19 @@ export async function updateZoom(newScale) {
 
 export async function fitWidth() {
     const page = await state.pdfDoc.getPage(1);
-    updateZoom((window.innerWidth - 35) / page.getViewport({ scale: 1 }).width);
+    updateZoom((window.innerWidth - 35) / page.getViewport({ scale: 1, rotation: state.pageRotation }).width);
 }
 
 export async function fitHeight() {
     const page = await state.pdfDoc.getPage(1);
-    updateZoom((window.innerHeight - 50) / page.getViewport({ scale: 1 }).height);
+    updateZoom((window.innerHeight - 50) / page.getViewport({ scale: 1, rotation: state.pageRotation }).height);
+}
+
+export function rotatePages(delta) {
+    state.pageRotation = (state.pageRotation + delta + 360) % 360;
+    document.querySelectorAll('.page-wrapper').forEach(wrapper => {
+        wrapper.dataset.rendered = 'false';
+    });
+    window.dispatchEvent(new CustomEvent('pdf-rotation-changed'));
+    updateZoom(state.currentScale);
 }

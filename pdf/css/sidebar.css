@@ -11,7 +11,7 @@
 }
 
 #pdf-sidebar.pos-left {
-    left: 8px;
+    left: 0px;
     border-right: 1px solid #333;
     box-shadow: 2px 0 10px rgba(0,0,0,0.3);
 }
@@ -21,7 +21,7 @@
 }
 
 #pdf-sidebar.pos-right {
-    right: 15px;
+    right: 0px;
     border-left: 1px solid #333;
     box-shadow: -2px 0 10px rgba(0,0,0,0.3);
 }
