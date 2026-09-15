@@ -1,13 +1,26 @@
 import { state } from './state.js';
 import { saveState } from './storage.js';
-import { applyAnnotation, undoAnnotation } from './annotations.js';
+import { applyAnnotation } from './annotations.js';
 import { updateZoom, fitWidth, fitHeight } from './pdf-engine.js';
 import { addNoteToUI } from './notes.js';
+import { undo, redo } from './history.js';
 
 const header = document.getElementById('mini-header');
 const zoomInput = document.getElementById('zoom-percent');
 const pageInput = document.getElementById('page-input');
 const container = document.getElementById('pages-container');
+let wheelZoomTimer = null;
+let pendingWheelScale = null;
+
+function queueWheelZoom(delta) {
+    pendingWheelScale = (pendingWheelScale ?? state.currentScale) + delta;
+    clearTimeout(wheelZoomTimer);
+    wheelZoomTimer = setTimeout(() => {
+        const nextScale = pendingWheelScale;
+        pendingWheelScale = null;
+        updateZoom(nextScale);
+    }, 40);
+}
 
 export function setHeaderMode(mode) {
     state.headerMode = mode;
@@ -35,12 +48,15 @@ function setAnnotationActive(active) {
 }
 
 export function setupUI() {
+    // Annotations
     document.getElementById('btn-annotate').onclick = () => setAnnotationActive(!state.annotationActive);
     document.getElementById('btn-eraser').onclick = () => {
         state.eraserActive = !state.eraserActive;
         if (state.eraserActive) state.annotationActive = false;
         setAnnotationActive(state.annotationActive);
     };
+    
+    // Zoom e Modos Visuais
     document.getElementById('btn-header-mode').onclick = () => cycleHeaderMode();
     document.getElementById('btn-zoom-in').onclick = () => updateZoom(state.currentScale + 0.1);
     document.getElementById('btn-zoom-out').onclick = () => updateZoom(state.currentScale - 0.1);
@@ -52,35 +68,9 @@ export function setupUI() {
         if (!isNaN(value)) updateZoom(value / 100);
         zoomInput.blur();
     };
+    
+    // Slider Lateral e Input de Página
     document.getElementById('lateral-slider').oninput = event => { container.style.transform = `translateX(${event.target.value * 10}px)`; };
-    document.addEventListener('mouseup', () => { if (state.annotationActive) applyAnnotation(); });
-    window.addEventListener('keydown', handleKeydown, { capture: true });
-    window.addEventListener('wheel', event => {
-        if (!event.ctrlKey) return;
-        event.preventDefault();
-        updateZoom(state.currentScale + (event.deltaY > 0 ? -0.1 : 0.1));
-    }, { passive: false });
-
-    const btnCopy = document.getElementById('btn-copy-url');
-    if (btnCopy) {
-        // Clique Esquerdo: Se tiver o Ctrl premido (e.ctrlKey) é Linux, senão é Windows.
-        btnCopy.onclick = (e) => handleCopy(e, e.ctrlKey, btnCopy);
-        
-        // Clique Direito: Sempre Linux (WSL)
-        btnCopy.oncontextmenu = (e) => handleCopy(e, true, btnCopy); 
-    }
-
-    const btnAddNote = document.getElementById('btn-add-note');
-    if (btnAddNote) {
-        btnAddNote.onclick = () => {
-            const currentPg = parseInt(pageInput.value, 10);
-            const overlay = document.querySelector(`#page-wrapper-${currentPg} .notes-overlay`);
-            if (overlay) {
-                addNoteToUI(overlay, currentPg, 50, 10, '', false);
-            }
-        };
-    }
-
     pageInput.onchange = () => {
         let val = parseInt(pageInput.value, 10);
         if (isNaN(val) || val < 1) val = 1;
@@ -95,17 +85,215 @@ export function setupUI() {
         }
     };
 
+    // Botões Extra
+    const btnCopy = document.getElementById('btn-copy-url');
+    if (btnCopy) {
+        btnCopy.onclick = (e) => handleCopy(e, e.ctrlKey, btnCopy);
+        btnCopy.oncontextmenu = (e) => handleCopy(e, true, btnCopy); 
+    }
+
+    const btnAddNote = document.getElementById('btn-add-note');
+    if (btnAddNote) {
+        btnAddNote.onclick = () => {
+            const currentPg = parseInt(pageInput.value, 10);
+            const overlay = document.querySelector(`#page-wrapper-${currentPg} .notes-overlay`);
+            if (overlay) addNoteToUI(overlay, currentPg, 50, 10, '', false);
+        };
+    }
+
     const btnFullscreen = document.getElementById('btn-fullscreen');
     if (btnFullscreen) {
         btnFullscreen.onclick = () => {
             if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`Erro ao ativar Fullscreen: ${err.message}`);
-                });
+                document.documentElement.requestFullscreen().catch(err => console.log(`Erro Fullscreen: ${err.message}`));
             } else {
                 document.exitFullscreen();
             }
         };
+    }
+
+    const btnFocus = document.getElementById('btn-focus-mode');
+    const readingRuler = document.getElementById('reading-ruler');
+    const focusOptions = document.getElementById('focus-options');
+    
+    if (btnFocus) {
+        btnFocus.onclick = () => {
+            state.focusMode = (state.focusMode + 1) % 3;
+            btnFocus.style.color = state.focusMode > 0 ? '#80d8ff' : '#ccc'; 
+            
+            readingRuler.className = ''; 
+            focusOptions?.classList.toggle('hidden', state.focusMode === 0);
+
+            if (state.focusMode === 1) { 
+                state.focusSize = 150; 
+                readingRuler.classList.add('mode-lantern'); 
+            }
+            if (state.focusMode === 2) { 
+                state.focusSize = 25; 
+                readingRuler.classList.add('mode-line'); 
+            }
+            
+            readingRuler.style.setProperty('--focus-size', `${state.focusSize}px`);
+            readingRuler.style.setProperty('--mouse-y', `${window.focusY}px`);
+        };
+    }
+
+    document.querySelectorAll('.focus-size').forEach(btn => {
+        btn.onclick = () => {
+            const val = parseInt(btn.dataset.val, 10);
+            state.focusSize = Math.max(10, Math.min(500, state.focusSize + val)); 
+            readingRuler.style.setProperty('--focus-size', `${state.focusSize}px`);
+        };
+    });
+
+    setupGlobalEvents();
+}
+
+
+function setupGlobalEvents() {
+    window.addEventListener('keydown', handleKeydown, { capture: true });
+
+    document.addEventListener('mouseup', () => { 
+        if (state.annotationActive) applyAnnotation(); 
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (state.focusMode > 0) {
+            window.focusY = e.clientY;
+            const readingRuler = document.getElementById('reading-ruler');
+            readingRuler.style.setProperty('--mouse-x', `${e.clientX}px`);
+            readingRuler.style.setProperty('--mouse-y', `${window.focusY}px`);
+        }
+    }, { passive: true });
+
+    window.addEventListener('wheel', event => {
+        if (event.ctrlKey) { // ctrl + wheel -> increases/decreases zoom by 10%
+            event.preventDefault();
+            queueWheelZoom(event.deltaY > 0 ? -0.1 : 0.1);
+            return;
+        }
+
+        if (event.shiftKey && state.focusMode > 0) { // shift + wheel -> increases focus size
+            event.preventDefault();
+            state.focusSize = event.deltaY > 0 ? Math.max(10, state.focusSize - 10) : Math.min(500, state.focusSize + 10);
+            document.getElementById('reading-ruler').style.setProperty('--focus-size', `${state.focusSize}px`);
+            return;
+        }
+
+        if (state.focusMode === 2) { // wheel -> in the ruler focus mode scrolls depending on focus size
+            const ruler = document.getElementById('reading-ruler');
+            const viewport = document.getElementById('viewport');
+            if (ruler?.classList.contains('mode-line') && viewport) {
+                event.preventDefault();
+                viewport.scrollBy({
+                    top: state.focusSize * Math.sign(event.deltaY) * 1.5,
+                    // scroll do rato ligeiramente menor que o tamanho do foco para manter algum 
+                    // texto do foco anterior e manter alguma continuidade (* 2.0 seria scroll igual ao foco)
+                    behavior: 'auto'
+                });
+            }
+        }
+    }, { passive: false });
+
+    header.addEventListener('wheel', event => { // when the header is too big to big to fit, it can be scrolled
+        if (event.ctrlKey) return;
+        event.preventDefault();
+        header.scrollLeft += event.deltaX + event.deltaY
+    }, { passive: false });
+}
+
+function handleKeydown(event) {
+    if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') {
+        if (event.key === 'Escape') document.activeElement.blur();
+        return;
+    }
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'f') { //ctrl + 'f' -> search
+        event.preventDefault();
+        if (typeof window.toggleWebSearch === 'function') window.toggleWebSearch();
+        return;
+    }
+    
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'z') { //ctrl + shift + 'z' -> redo
+        event.preventDefault();
+        redo();
+        return;
+    }
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'y') { //ctrl + 'y' -> redo
+        event.preventDefault();
+        redo();
+        return;
+    }
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'z') { //ctrl + 'z' -> undo
+        event.preventDefault();
+        undo();
+        return;
+    }
+
+    if (event.ctrlKey && ['+', '-', '=', '0'].includes(event.key)) { // zoom
+        event.preventDefault();
+        if (event.key === '+') updateZoom(state.currentScale + 0.1); //ctrl + '+' -> +10% zoom
+        if (event.key === '-') updateZoom(state.currentScale - 0.1); // ctrl + '-' -> -10% zoom
+        if (event.key === '0') updateZoom(1); //ctrl + '0' -> set zoom to 100%
+        return;
+    }
+    
+    if (event.key.toLowerCase() === 'h') cycleHeaderMode(); // 'h' -> clycles through header modes
+
+    const currentPage = getCurrentPageNumber();
+
+    if (event.key === 'ArrowRight' && !event.altKey) { // '→' + alt -> change index/pages sidebar to right side
+        event.preventDefault();
+        const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
+        const wrapper = document.getElementById(`page-wrapper-${next}`);
+        const viewport = document.getElementById('viewport');
+        if (wrapper && viewport) {
+            pageInput.value = next;
+            viewport.scrollTo({ top: wrapper.offsetTop - 42 });
+        }
+    }
+
+    if (event.key === 'ArrowLeft' && !event.altKey) { // '←' + alt -> change index/pages sidebar to left side 
+        event.preventDefault();
+        const prev = Math.max(1, currentPage - 1);
+        const wrapper = document.getElementById(`page-wrapper-${prev}`);
+        const viewport = document.getElementById('viewport');
+        if (wrapper && viewport) {
+            pageInput.value = prev;
+            viewport.scrollTo({ top: wrapper.offsetTop - 42, behavior: 'smooth' });
+        }
+    }
+
+    if (event.key === 'ArrowDown') { // '↓' -> moves to the next page
+        event.preventDefault();
+        const ruler = document.getElementById('reading-ruler');
+        if (ruler?.classList.contains('mode-line')) {
+            document.getElementById('viewport').scrollBy({ top: getFocusLineHeight(ruler), behavior: 'smooth' });
+        } else {
+            const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
+            const wrapper = document.getElementById(`page-wrapper-${next}`);
+            if (wrapper) { 
+                pageInput.value = next; 
+                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 42, behavior: 'smooth' });
+            }
+        }
+    }
+
+    if (event.key === 'ArrowUp') { // '↑' -> moves to the next page
+        event.preventDefault();
+        const ruler = document.getElementById('reading-ruler');
+        if (ruler?.classList.contains('mode-line')) {
+            document.getElementById('viewport').scrollBy({ top: -getFocusLineHeight(ruler), behavior: 'smooth' });
+        } else {
+            const prev = Math.max(1, currentPage - 1);
+            const wrapper = document.getElementById(`page-wrapper-${prev}`);
+            if (wrapper) { 
+                pageInput.value = prev; 
+                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 42, behavior: 'smooth' });
+            }
+        }
     }
 }
 
@@ -179,57 +367,7 @@ function getCurrentPageNumber() {
     return bestPage;
 }
 
-function handleKeydown(event) {
-    if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') {
-        if (event.key === 'Escape') document.activeElement.blur();
-        return;
-    }
-
-    if (event.ctrlKey && event.key.toLowerCase() === 'f') {
-        event.preventDefault();
-        if (typeof window.toggleWebSearch === 'function') {
-            window.toggleWebSearch();
-        }
-        return;
-    }
-    
-    if (event.ctrlKey && event.key.toLowerCase() === 'z') {
-        if (undoAnnotation()) event.preventDefault();
-        return;
-    }
-
-    if (event.ctrlKey && ['+', '-', '=', '0'].includes(event.key)) {
-        event.preventDefault();
-        if (event.key === '+' || event.key === '=') updateZoom(state.currentScale + 0.1);
-        if (event.key === '-') updateZoom(state.currentScale - 0.1);
-        if (event.key === '0') updateZoom(1);
-        return;
-    }
-    if (event.key.toLowerCase() === 'h') cycleHeaderMode();
-
-    const currentPage = getCurrentPageNumber();
-
-    if (event.key === 'ArrowRight' && !event.altKey) {
-        event.preventDefault();
-        const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
-        const wrapper = document.getElementById(`page-wrapper-${next}`);
-        const viewport = document.getElementById('viewport');
-        if (wrapper && viewport) {
-            pageInput.value = next;
-            const y = wrapper.offsetTop - 42;
-            viewport.scrollTo({ top: y });
-        }
-    }
-
-    if (event.key === 'ArrowLeft' && !event.altKey) {
-        event.preventDefault();
-        const prev = Math.max(1, currentPage - 1);
-        const wrapper = document.getElementById(`page-wrapper-${prev}`);
-        const viewport = document.getElementById('viewport');
-        if (wrapper && viewport) {
-            pageInput.value = prev;
-            const y = wrapper.offsetTop - 42;
-            viewport.scrollTo({ top: y, behavior: 'smooth' });
-        }
-    }
+function getFocusLineHeight(ruler) {
+    const value = parseFloat(getComputedStyle(ruler).getPropertyValue('--focus-line-height'));
+    return Number.isFinite(value) ? value : 25;
 }

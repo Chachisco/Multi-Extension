@@ -8,10 +8,11 @@ export const state = {
     currentAnnotationMode: 'highlight',
     currentAnnotationColor: '#ffeb3b',
     currentAnnotationSize: 4,
+    focusMode: 0,
+    focusSize: 150,
     renderTasks: {},
     renderingStates: {},
     textLayerTasks: {},
-    annotationHistory: [],
     annotationLoadVersions: {},
-    pendingAnnotationRemovals: new Map()
+    pendingAnnotationRemovals: new Map(),
 };

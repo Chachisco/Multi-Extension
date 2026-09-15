@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { annotationKey, annotationId } from './storage.js';
+import { record } from './history.js';
 
 export function setupAnnotationOptions() {
     document.querySelectorAll('.opt-mode').forEach(button => {
@@ -38,6 +39,7 @@ export function renderAnnotation(pageNum, annotation) {
     mark.style.backgroundColor = annotation.color;
     mark.style.color = annotation.color;
     mark.style.borderBottomWidth = `${annotation.size}px`;
+    mark.dataset.annotationId = annotationId(annotation);
     mark.onclick = event => {
         if (!state.eraserActive) return;
         event.stopPropagation();
@@ -47,20 +49,55 @@ export function renderAnnotation(pageNum, annotation) {
     return mark;
 }
 
+function removeStoredAnnotations(pageNum, annotations) {
+    const key = annotationKey(pageNum);
+    const ids = new Set(annotations.map(annotationId));
+    chrome.storage.local.get(key, result => {
+        chrome.storage.local.set({
+            [key]: (result[key] || []).filter(annotation => !ids.has(annotationId(annotation)))
+        });
+    });
+}
+
+function appendStoredAnnotations(pageNum, annotations) {
+    const key = annotationKey(pageNum);
+    chrome.storage.local.get(key, result => {
+        const current = result[key] || [];
+        const existing = new Set(current.map(annotationId));
+        const additions = annotations.filter(annotation => !existing.has(annotationId(annotation)));
+        chrome.storage.local.set({ [key]: [...current, ...additions] });
+    });
+}
+
 function removeAnnotation(pageNum, annotation, mark) {
     state.annotationLoadVersions[pageNum] = (state.annotationLoadVersions[pageNum] || 0) + 1;
     mark.remove();
+
     const key = annotationKey(pageNum);
     const removalId = annotationId(annotation);
-    if (!state.pendingAnnotationRemovals.has(pageNum)) state.pendingAnnotationRemovals.set(pageNum, new Set());
-    state.pendingAnnotationRemovals.get(pageNum).add(removalId);
-    chrome.storage.local.get(key, result => {
-        const annotations = result[key] || [];
-        const index = annotations.findIndex(item => annotationId(item) === removalId);
-        if (index !== -1) annotations.splice(index, 1);
-        chrome.storage.local.set({ [key]: annotations }, () => {
-            state.pendingAnnotationRemovals.get(pageNum)?.delete(removalId);
-        });
+    const markRemovalPending = () => {
+        if (!state.pendingAnnotationRemovals.has(pageNum)) state.pendingAnnotationRemovals.set(pageNum, new Set());
+        state.pendingAnnotationRemovals.get(pageNum).add(removalId);
+    };
+    const restoreMark = () => {
+        state.pendingAnnotationRemovals.get(pageNum)?.delete(removalId);
+        removeRenderedAnnotations(pageNum, [annotation]);
+        mark = renderAnnotation(pageNum, annotation);
+        appendStoredAnnotations(pageNum, [annotation]);
+    };
+    const deleteMark = () => {
+        state.annotationLoadVersions[pageNum] = (state.annotationLoadVersions[pageNum] || 0) + 1;
+        markRemovalPending();
+        removeRenderedAnnotations(pageNum, [annotation]);
+        removeStoredAnnotations(pageNum, [annotation]);
+    };
+
+    markRemovalPending();
+    removeStoredAnnotations(pageNum, [annotation]);
+    record({
+        label: 'Apagar anotação',
+        undo: restoreMark,
+        redo: deleteMark
     });
 }
 
@@ -83,6 +120,7 @@ export function loadAnnotationsForPage(pageNum) {
 export function applyAnnotation() {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+
     const range = selection.getRangeAt(0);
     const source = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
         ? range.commonAncestorContainer
@@ -92,37 +130,55 @@ export function applyAnnotation() {
 
     const wrapperRect = wrapper.getBoundingClientRect();
     const pageNum = Number(wrapper.dataset.pageNumber);
-    const annotations = [...range.getClientRects()]
-        .filter(rect => rect.width && rect.height)
-        .map(rect => ({
-            mode: state.currentAnnotationMode,
-            color: state.currentAnnotationColor,
-            size: state.currentAnnotationSize,
-            x: ((rect.left - wrapperRect.left) / wrapperRect.width) * 100,
-            y: ((rect.top - wrapperRect.top) / wrapperRect.height) * 100,
-            width: (rect.width / wrapperRect.width) * 100,
-            height: (rect.height / wrapperRect.height) * 100
-        }));
-    const marks = annotations.map(annotation => renderAnnotation(pageNum, annotation));
+    
+    const rawRects = [...range.getClientRects()].filter(rect => rect.width && rect.height);
+    
+    const uniqueRects = [];
+    rawRects.forEach(rect => {
+        const isDuplicate = uniqueRects.some(r => 
+            Math.abs(r.left - rect.left) < 2 && 
+            Math.abs(r.top - rect.top) < 2 && 
+            Math.abs(r.width - rect.width) < 2
+        );
+        if (!isDuplicate) uniqueRects.push(rect);
+    });
+
+    const annotations = uniqueRects.map(rect => ({
+        mode: state.currentAnnotationMode,
+        color: state.currentAnnotationColor,
+        size: state.currentSize || state.currentAnnotationSize,
+        x: ((rect.left - wrapperRect.left) / wrapperRect.width) * 100,
+        y: ((rect.top - wrapperRect.top) / wrapperRect.height) * 100,
+        width: (rect.width / wrapperRect.width) * 100,
+        height: (rect.height / wrapperRect.height) * 100
+    }));
+
+    annotations.forEach(annotation => renderAnnotation(pageNum, annotation));
+    
+    selection.removeAllRanges(); // Limpa a seleção azul nativa
+
     if (!annotations.length) return;
 
-    const key = annotationKey(pageNum);
-    chrome.storage.local.get(key, result => {
-        chrome.storage.local.set({ [key]: [...(result[key] || []), ...annotations] });
+    appendStoredAnnotations(pageNum, annotations);
+    record({
+        label: 'Criar anotação',
+        undo: () => {
+            removeRenderedAnnotations(pageNum, annotations);
+            removeStoredAnnotations(pageNum, annotations);
+        },
+        redo: () => {
+            annotations.forEach(annotation => {
+                removeRenderedAnnotations(pageNum, [annotation]);
+                renderAnnotation(pageNum, annotation);
+            });
+            appendStoredAnnotations(pageNum, annotations);
+        }
     });
-    state.annotationHistory.push({ pageNum, annotations, marks });
-    selection.removeAllRanges();
 }
 
-export function undoAnnotation() {
-    const lastAction = state.annotationHistory.pop();
-    if (!lastAction) return false;
-    lastAction.marks.forEach(mark => mark?.remove());
-    const key = annotationKey(lastAction.pageNum);
-    chrome.storage.local.get(key, result => {
-        chrome.storage.local.set({
-            [key]: (result[key] || []).slice(0, -lastAction.annotations.length)
-        });
+function removeRenderedAnnotations(pageNum, annotations) {
+    const ids = new Set(annotations.map(annotationId));
+    document.querySelectorAll(`#page-wrapper-${pageNum} .annotation-mark`).forEach(mark => {
+        if (ids.has(mark.dataset.annotationId)) mark.remove();
     });
-    return true;
 }

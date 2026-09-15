@@ -3,15 +3,50 @@ import { state } from './state.js';
 import { loadAnnotationsForPage } from './annotations.js';
 import { loadNotesForPage } from './notes.js';
 import { saveState } from './storage.js';
+import { activate as activateHistory } from './history.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.mjs';
 
 const container = document.getElementById('pages-container');
 const viewport = document.getElementById('viewport');
 const pageInput = document.getElementById('page-input');
+let zoomRequestId = 0;
+let pageObserver = null;
+let lastStoredPage = null;
+const pageCache = new Map();
+
+const linkService = {
+    getDestinationHash: dest => dest,
+    navigateTo: dest => console.log('Navegar para:', dest),
+    getAnchorUrl: url => url || '',
+    setDocument: () => {},
+    executeNamedAction: action => console.log('Ação:', action),
+    addLinkAttributes: (link, url) => {
+        link.href = url;
+        link.target = url ? '_blank' : '';
+        link.rel = 'noopener noreferrer nofollow';
+    }
+};
+
+function getPage(pageNum) {
+    if (!pageCache.has(pageNum)) pageCache.set(pageNum, state.pdfDoc.getPage(pageNum));
+    return pageCache.get(pageNum);
+}
 
 export async function loadPDF(source, filename) {
+    Object.values(state.renderTasks).forEach(task => task?.cancel());
+    Object.values(state.textLayerTasks).forEach(task => task?.cancel());
+    pageObserver?.disconnect();
+    pageCache.clear();
+    state.renderTasks = {};
+    state.renderingStates = {};
+    state.textLayerTasks = {};
+    state.annotationLoadVersions = {};
+    state.pendingAnnotationRemovals = new Map();
+    lastStoredPage = null;
+
     state.currentFilename = filename;
+    activateHistory(filename);
     document.title = filename || 'UniPDF Pro';
     const loadingTask = pdfjsLib.getDocument(typeof source === 'string' ? { url: source } : { data: source });
     state.pdfDoc = await loadingTask.promise;
@@ -23,9 +58,10 @@ export async function loadPDF(source, filename) {
     // 1. Descobrir a geometria EXATA de todas as páginas super rápido (sem as pintar!)
     const pagePromises = [];
     for (let i = 1; i <= totalPages; i++) {
-        pagePromises.push(state.pdfDoc.getPage(i));
+        pagePromises.push(getPage(i));
     }
     const pages = await Promise.all(pagePromises);
+    pages.forEach((page, index) => pageCache.set(index + 1, page));
 
     // 2. Criar as caixas com as medidas reais de cada uma
     pages.forEach((page, index) => {
@@ -60,57 +96,50 @@ export async function renderPage(pageNum) {
     state.renderingStates[pageNum] = true;
     const dpr = window.devicePixelRatio || 1;
     try {
-        const page = await state.pdfDoc.getPage(pageNum);
+        const page = await getPage(pageNum);
         const pageViewport = page.getViewport({ scale: state.currentScale });
         const canvas = wrapper.querySelector('canvas');
         const context = canvas.getContext('2d', { alpha: false });
-        canvas.width = Math.floor(pageViewport.width * dpr);
-        canvas.height = Math.floor(pageViewport.height * dpr);
-        canvas.style.width = `${Math.floor(pageViewport.width)}px`;
-        canvas.style.height = `${Math.floor(pageViewport.height)}px`;
-        wrapper.style.width = canvas.style.width;
-        wrapper.style.height = canvas.style.height;
-        if (state.renderTasks[pageNum]) state.renderTasks[pageNum].cancel();
-        const renderTask = page.render({ canvasContext: context, viewport: pageViewport, transform: [dpr, 0, 0, dpr, 0, 0] });
-        state.renderTasks[pageNum] = renderTask;
-        await renderTask.promise;
-
         const textLayerDiv = wrapper.querySelector('.textLayer');
-        textLayerDiv.innerHTML = '';
-        textLayerDiv.style.setProperty('--scale-factor', state.currentScale);
-        textLayerDiv.style.setProperty('--total-scale-factor', state.currentScale);
         const textLayer = new pdfjsLib.TextLayer({
             textContentSource: await page.getTextContent(),
             container: textLayerDiv,
             viewport: pageViewport
         });
+        const linksLayerDiv = wrapper.querySelector('.pdf-links-layer');
+
+        canvas.width = Math.floor(pageViewport.width * dpr);
+        canvas.height = Math.floor(pageViewport.height * dpr);
+        canvas.style.width = `${Math.floor(pageViewport.width)}px`;
+        canvas.style.height = `${Math.floor(pageViewport.height)}px`;
+
+        wrapper.style.width = canvas.style.width;
+        wrapper.style.height = canvas.style.height;
+
+        if (state.renderTasks[pageNum]){state.renderTasks[pageNum].cancel();}
+        const renderTask = page.render({ canvasContext: context, viewport: pageViewport, transform: [dpr, 0, 0, dpr, 0, 0] });
+        state.renderTasks[pageNum] = renderTask;
+        await renderTask.promise;
+
+
+        textLayerDiv.innerHTML = '';
+        textLayerDiv.style.setProperty('--scale-factor', state.currentScale);
+        textLayerDiv.style.setProperty('--total-scale-factor', state.currentScale);
+
         state.textLayerTasks[pageNum] = textLayer;
         await textLayer.render();
+
         wrapper.dataset.rendered = 'true';
         wrapper.dataset.scale = state.currentScale;
         loadNotesForPage(pageNum);
         loadAnnotationsForPage(pageNum);
 
-        const linksLayerDiv = wrapper.querySelector('.pdf-links-layer');
         linksLayerDiv.innerHTML = ''; // Limpa links antigos
 
         try {
             const annotationsData = await page.getAnnotations();
             const linkAnnotations = annotationsData.filter(a => a.subtype === 'Link');
             
-            const linkService = {
-                    getDestinationHash: (dest) => dest,
-                    navigateTo: (dest) => console.log("Navegar para:", dest),
-                    getAnchorUrl: (url) => url || "",
-                    setDocument: () => {},
-                    executeNamedAction: (action) => console.log("Ação:", action),
-                    addLinkAttributes: (link, url, newWindow) => {
-                        link.href = url;
-                        link.target = url ? '_blank' : '';
-                        link.rel = 'noopener noreferrer nofollow';
-                    }
-                };
-
             const annotationLayer = new pdfjsLib.AnnotationLayer({
                 viewport: pageViewport,
                 div: linksLayerDiv,
@@ -134,59 +163,82 @@ export async function renderPage(pageNum) {
 }
 
 function setupObserver() {
-    const observer = new IntersectionObserver(entries => entries.forEach(entry => {
+    pageObserver?.disconnect();
+    pageObserver = new IntersectionObserver(entries => entries.forEach(entry => {
         if (!entry.isIntersecting) return;
         const pageNum = parseInt(entry.target.dataset.pageNumber, 10);
         renderPage(pageNum);
         pageInput.value = pageNum;
-        chrome.storage.local.set({ [state.currentFilename]: pageNum });
+        if (pageNum !== lastStoredPage) {
+            lastStoredPage = pageNum;
+            chrome.storage.local.set({ [state.currentFilename]: pageNum });
+        }
     }), { root: viewport, threshold: 0.1 });
-    document.querySelectorAll('.page-wrapper').forEach(page => observer.observe(page));
+    document.querySelectorAll('.page-wrapper').forEach(page => pageObserver.observe(page));
 }
 
 export function renderVisiblePages() {
+    const viewportRect = viewport.getBoundingClientRect();
     document.querySelectorAll('.page-wrapper').forEach(wrapper => {
         const rect = wrapper.getBoundingClientRect();
-        if (rect.top < window.innerHeight && rect.bottom > 0) renderPage(parseInt(wrapper.dataset.pageNumber, 10));
+        if (rect.top < viewportRect.bottom && rect.bottom > viewportRect.top) {
+            renderPage(parseInt(wrapper.dataset.pageNumber, 10));
+        }
     });
 }
 
+function updatePageGeometry(page, pageNum) {
+    const vp = page.getViewport({ scale: state.currentScale });
+    const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
+
+    if (!wrapper) return;
+    wrapper.style.width = `${Math.floor(vp.width)}px`;
+    wrapper.style.height = `${Math.floor(vp.height)}px`;
+    wrapper.dataset.rendered = 'false';
+
+    const canvas = wrapper.querySelector('canvas');
+    if (canvas) {
+        canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    wrapper.querySelector('.textLayer').innerHTML = '';
+    wrapper.querySelector('.pdf-links-layer').innerHTML = '';
+
+    return wrapper;
+}
+
+function getScrollAnchor() {
+    const scrollTop = viewport.scrollTop;
+    const wrappers = document.querySelectorAll('.page-wrapper');
+    const wrapper = [...wrappers].find(page => page.offsetTop + page.offsetHeight > scrollTop);
+    return {
+        wrapper,
+        offset: wrapper ? scrollTop - wrapper.offsetTop : 0
+    };
+}
+
+function restoreScrollAnchor(anchor) {
+    if (anchor.wrapper) {
+        viewport.scrollTo({
+            top: anchor.wrapper.offsetTop + anchor.offset,
+            behavior: 'auto'
+        });
+    }
+}
+
 export async function updateZoom(newScale) {
+    const requestId = ++zoomRequestId;
+    const scrollAnchor = getScrollAnchor();
+
     state.currentScale = Math.min(Math.max(0.1, newScale), 5);
     document.getElementById('zoom-percent').value = `${Math.round(state.currentScale * 100)}%`;
     
     if (state.pdfDoc) {
-        const totalPages = state.pdfDoc.numPages;
-        const pagePromises = [];
-        
-        for (let i = 1; i <= totalPages; i++) {
-            pagePromises.push(state.pdfDoc.getPage(i));
-        }
-        
-        const pages = await Promise.all(pagePromises);
-
-        pages.forEach((page, index) => {
-            const pageNum = index + 1;
-            const vp = page.getViewport({ scale: state.currentScale });
-            const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
-            
-            if (wrapper) {
-                wrapper.style.width = `${Math.floor(vp.width)}px`;
-                wrapper.style.height = `${Math.floor(vp.height)}px`;
-                
-                wrapper.dataset.rendered = 'false'; 
-                
-                const canvas = wrapper.querySelector('canvas');
-                if(canvas) {
-                    const ctx = canvas.getContext('2d');
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
-            }
-        });
+        Object.values(state.textLayerTasks).forEach(task => task?.cancel());
+        Object.values(state.renderTasks).forEach(task => task?.cancel());
+        pageCache.forEach((page, pageNum) => updatePageGeometry(page, pageNum));
+        if (requestId !== zoomRequestId) return;
+        restoreScrollAnchor(scrollAnchor);
     }
-
-    Object.values(state.textLayerTasks).forEach(task => task?.cancel());
-    Object.values(state.renderTasks).forEach(task => task?.cancel());
     
     renderVisiblePages();
     saveState();

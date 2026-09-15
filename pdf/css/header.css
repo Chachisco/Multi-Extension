@@ -10,11 +10,29 @@
     padding: 0 20px; z-index: 2000; color: #eee;
     transition: all 0.2s ease-in-out;
     box-sizing: border-box;
+    overflow-x: auto; 
+    overflow-y: hidden;
+    scrollbar-width: none;
+    gap: 15px;
+}
+
+#mini-header::-webkit-scrollbar { 
+    display: none; 
+}
+
+.header-left, #annotation-toolbar, .zoom-controls { 
+    flex-shrink: 0; 
 }
 
 #annotation-toolbar, .zoom-controls { 
     pointer-events: auto; 
     transition: opacity 0.2s; 
+}
+
+#page-display {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
 }
 
 .header-left { display: flex; align-items: center; gap: 4px; pointer-events: auto; transition: opacity 0.2s; }

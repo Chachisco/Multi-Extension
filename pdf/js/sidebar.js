@@ -62,6 +62,7 @@ if (btnSide) {
 }
 
 window.addEventListener('keydown', (e) => {
+    if (!sidebar || sidebar.classList.contains('closed')) return;
     if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') return;
 
     if (e.altKey && e.key === 'ArrowRight') {
@@ -69,7 +70,7 @@ window.addEventListener('keydown', (e) => {
         sidebar.classList.remove('pos-left');
         sidebar.classList.add('pos-right');
     }
-    
+
     if (e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault();
         sidebar.classList.remove('pos-right');
