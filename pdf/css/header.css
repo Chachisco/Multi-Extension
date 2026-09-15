@@ -43,7 +43,8 @@
 /* Esconde o grupo da esquerda nos modos certos */
 #mini-header.mode-minimal:not(:hover) .header-left,
 #mini-header.mode-ghost:not(:hover).annotation-active .header-left,
-#mini-header.mode-ghost:not(:hover).eraser-active .header-left {
+#mini-header.mode-ghost:not(:hover).eraser-active .header-left,
+#mini-header.mode-ghost:not(:hover).freehand-active .header-left {
     opacity: 0; visibility: hidden; pointer-events: none;
 }
 
@@ -95,7 +96,7 @@
     background: #1e1e1e; padding: 4px 10px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.5);
 }
 
-#mini-header.mode-ghost:not(:hover):not(.annotation-active):not(.eraser-active) #annotation-toolbar {
+#mini-header.mode-ghost:not(:hover):not(.annotation-active):not(.eraser-active):not(.freehand-active) #annotation-toolbar {
     opacity: 0; pointer-events: none;
 }
 
@@ -107,7 +108,7 @@
     opacity: 0; pointer-events: none;
 }
 
-#mini-header.mode-minimal:not(:hover):not(.annotation-active):not(.eraser-active) #annotation-toolbar {
+#mini-header.mode-minimal:not(:hover):not(.annotation-active):not(.eraser-active):not(.freehand-active) #annotation-toolbar {
     opacity: 0; pointer-events: none;
 }
 
@@ -115,7 +116,8 @@
    5. A CÁPSULA FLUTUANTE (Para ferramentas ativas)
    ========================================= */
 #mini-header:is(.mode-ghost, .mode-minimal):not(:hover).annotation-active #annotation-toolbar,
-#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).eraser-active #annotation-toolbar {
+#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).eraser-active #annotation-toolbar,
+#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).freehand-active #annotation-toolbar {
     background: #1e1e1e; padding: 4px 6px; border-radius: 8px;
     border: 1px solid #444; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.6);
 }
@@ -141,7 +143,7 @@
 #annotation-toolbar button:hover, .zoom-controls button:hover, #search-panel button:hover { background: #333; color: white; }
 #annotation-toolbar button svg, .zoom-controls button svg, #search-panel button svg { width: 16px; height: 16px; }
 
-#btn-annotate.tool-active, #btn-eraser.tool-active { 
+#btn-annotate.tool-active, #btn-eraser.tool-active, #btn-draw.tool-active {
     color: #ffd740; border-color: #ffd740; background: rgba(255, 215, 64, 0.1); 
 }
 
@@ -153,6 +155,10 @@
 #annotation-options.hidden { display: none; }
 #annotation-options .opt-btn { width: 28px; height: 28px; border-radius: 4px; }
 #annotation-options .opt-btn.active { background: #444; color: #ffd740; }
+#mini-header.freehand-active #annotation-options .opt-mode,
+#mini-header.freehand-active #annotation-options .opt-mode + .divider {
+    display: none;
+}
 
 .opt-color {
     width: 16px !important; height: 16px !important; border-radius: 50% !important;

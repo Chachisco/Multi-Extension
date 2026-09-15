@@ -4,6 +4,7 @@ import { loadAnnotationsForPage } from './annotations.js';
 import { loadNotesForPage } from './notes.js';
 import { saveState } from './storage.js';
 import { activate as activateHistory } from './history.js';
+import { initDrawingLayer, resizeDrawingCanvas, loadDrawingsForPage } from './drawing.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.mjs';
 
@@ -41,6 +42,7 @@ export async function loadPDF(source, filename) {
     state.renderTasks = {};
     state.renderingStates = {};
     state.textLayerTasks = {};
+    state.drawings = {};
     state.annotationLoadVersions = {};
     state.pendingAnnotationRemovals = new Map();
     lastStoredPage = null;
@@ -77,8 +79,9 @@ export async function loadPDF(source, filename) {
         wrapper.style.width = `${Math.floor(vp.width)}px`;
         wrapper.style.height = `${Math.floor(vp.height)}px`;
         
-        wrapper.innerHTML = '<canvas></canvas><div class="pdf-links-layer"></div><div class="annotation-layer"></div><div class="textLayer"></div><div class="notes-overlay"></div>';
+        wrapper.innerHTML = '<canvas></canvas><canvas class="drawing-canvas"></canvas><div class="pdf-links-layer"></div><div class="annotation-layer"></div><div class="textLayer"></div><div class="notes-overlay"></div>';
         container.appendChild(wrapper);
+        initDrawingLayer(wrapper, pageNum);
     });
 
     setupObserver();
@@ -98,7 +101,7 @@ export async function renderPage(pageNum) {
     try {
         const page = await getPage(pageNum);
         const pageViewport = page.getViewport({ scale: state.currentScale });
-        const canvas = wrapper.querySelector('canvas');
+        const canvas = wrapper.querySelector('canvas:not(.drawing-canvas)');
         const context = canvas.getContext('2d', { alpha: false });
         const textLayerDiv = wrapper.querySelector('.textLayer');
         const textLayer = new pdfjsLib.TextLayer({
@@ -112,6 +115,8 @@ export async function renderPage(pageNum) {
         canvas.height = Math.floor(pageViewport.height * dpr);
         canvas.style.width = `${Math.floor(pageViewport.width)}px`;
         canvas.style.height = `${Math.floor(pageViewport.height)}px`;
+        resizeDrawingCanvas(pageNum, pageViewport.width, pageViewport.height);
+        if (state.drawings?.[pageNum] === undefined) await loadDrawingsForPage(pageNum);
 
         wrapper.style.width = canvas.style.width;
         wrapper.style.height = canvas.style.height;
@@ -195,8 +200,9 @@ function updatePageGeometry(page, pageNum) {
     wrapper.style.width = `${Math.floor(vp.width)}px`;
     wrapper.style.height = `${Math.floor(vp.height)}px`;
     wrapper.dataset.rendered = 'false';
+    resizeDrawingCanvas(pageNum, vp.width, vp.height);
 
-    const canvas = wrapper.querySelector('canvas');
+    const canvas = wrapper.querySelector('canvas:not(.drawing-canvas)');
     if (canvas) {
         canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
     }
