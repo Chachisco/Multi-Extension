@@ -9,6 +9,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.mjs';
 const container = document.getElementById('pages-container');
 const viewport = document.getElementById('viewport');
 const pageInput = document.getElementById('page-input');
+let zoomRequestId = 0;
 
 export async function loadPDF(source, filename) {
     state.currentFilename = filename;
@@ -93,53 +94,6 @@ export async function renderPage(pageNum) {
         state.textLayerTasks[pageNum] = textLayer;
         await textLayer.render();
 
-        const mathPattern = /[=+\-*/\\[\]{}()<>_^|0-9]/;
-        const bionicRanges = [];
-        
-        // Usar TreeWalker para capturar os nós de texto verdadeiros do PDF.js
-        const treeWalker = document.createTreeWalker(textLayerDiv, NodeFilter.SHOW_TEXT, null, false);
-        let textNode;
-        
-        while ((textNode = treeWalker.nextNode())) {
-            const text = textNode.nodeValue;
-            if (text.trim().length > 1) {
-                // Regex global que apanha cada palavra e a sua posição no node
-                const wordRegex = /\S+/g;
-                let match;
-                
-                while ((match = wordRegex.exec(text)) !== null) {
-                    const word = match[0];
-                    if (word.length <= 1 || mathPattern.test(word)) continue;
-                    
-                    const splitPoint = Math.ceil(word.length / 2);
-                    
-                    try {
-                        const range = new Range();
-                        // Destaca apenas a primeira metade da palavra
-                        range.setStart(textNode, match.index);
-                        range.setEnd(textNode, match.index + splitPoint);
-                        bionicRanges.push(range);
-                    } catch(e) {}
-                }
-            }
-        }
-
-        // Se houver palavras para pintar, criamos o grupo e pintamos a página toda
-        if (bionicRanges.length > 0 && CSS.highlights) {
-            // Guarda com o ID da página para podermos gerir (ligar/desligar)
-            const highlight = new Highlight(...bionicRanges);
-            CSS.highlights.set(`bionic-pg-${pageNum}`, highlight);
-        }
-
-        // Sincronizar com o estado atual do botão
-        const btnBold = document.getElementById('btn-bold-mode');
-        if (btnBold && btnBold.style.color === 'rgb(255, 215, 64)') {
-            wrapper.classList.add('fast-read');
-        } else {
-            // Se estiver desligado, limpamos a pintura desta página
-            if (CSS.highlights) CSS.highlights.delete(`bionic-pg-${pageNum}`);
-        }
-
         wrapper.dataset.rendered = 'true';
         wrapper.dataset.scale = state.currentScale;
         loadNotesForPage(pageNum);
@@ -205,6 +159,12 @@ export function renderVisiblePages() {
 }
 
 export async function updateZoom(newScale) {
+    const requestId = ++zoomRequestId;
+    const scrollTop = viewport.scrollTop;
+    const scrollAnchor = [...document.querySelectorAll('.page-wrapper')]
+        .find(wrapper => wrapper.offsetTop + wrapper.offsetHeight > scrollTop);
+    const anchorOffset = scrollAnchor ? scrollTop - scrollAnchor.offsetTop : 0;
+
     state.currentScale = Math.min(Math.max(0.1, newScale), 5);
     document.getElementById('zoom-percent').value = `${Math.round(state.currentScale * 100)}%`;
     
@@ -217,6 +177,8 @@ export async function updateZoom(newScale) {
         }
         
         const pages = await Promise.all(pagePromises);
+
+        if (requestId !== zoomRequestId) return;
 
         pages.forEach((page, index) => {
             const pageNum = index + 1;
@@ -236,6 +198,13 @@ export async function updateZoom(newScale) {
                 }
             }
         });
+
+        if (scrollAnchor) {
+            viewport.scrollTo({
+                top: scrollAnchor.offsetTop + anchorOffset,
+                behavior: 'auto'
+            });
+        }
     }
 
     Object.values(state.textLayerTasks).forEach(task => task?.cancel());

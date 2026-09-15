@@ -152,16 +152,6 @@
     display: block; width: 100%; height: 100%;
 }
 
-.page-wrapper.fast-read canvas {
-    opacity: 0.6;
-}
-
-::highlight(bionic-read) {
-    color: #000;
-    text-shadow: 0.3px 0 0 #000; /* Um bold super leve que não afeta a largura da caixa */
-}
-
-
 #reading-ruler {
     position: fixed; left: 0; top: 0; width: 100vw; height: 100vh;
     pointer-events: none; z-index: 1999;

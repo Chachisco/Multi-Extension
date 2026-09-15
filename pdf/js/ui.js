@@ -99,17 +99,6 @@ export function setupUI() {
         };
     }
 
-    const btnBold = document.getElementById('btn-bold-mode');
-    if (btnBold) {
-        btnBold.onclick = () => {
-            state.isBoldMode = !state.isBoldMode;
-            btnBold.style.color = state.isBoldMode ? '#ffd740' : '#ccc';
-            document.querySelectorAll('.page-wrapper, .textLayer').forEach(el => {
-                el.classList.toggle('fast-read', state.isBoldMode);
-            });
-        };
-    }
-
     const btnFocus = document.getElementById('btn-focus-mode');
     const readingRuler = document.getElementById('reading-ruler');
     const focusOptions = document.getElementById('focus-options');
