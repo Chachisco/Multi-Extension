@@ -214,7 +214,17 @@ function handleKeydown(event) {
     }
     
     if (event.ctrlKey && event.key.toLowerCase() === 'z') {
-        if (undoAnnotation()) event.preventDefault();
+        if (!undoAnnotation() && state.noteHistory && state.noteHistory.length > 0) {
+            event.preventDefault();
+            const lastAction = state.noteHistory.pop();
+            if (lastAction.type === 'delete') {
+                const { pageNum, x, y, text, pinned, locked } = lastAction.noteData;
+                addNoteToUI(lastAction.overlay, pageNum, x, y, text, pinned, locked);
+                saveNotesForPage(pageNum, lastAction.overlay);
+            }
+        } else {
+            event.preventDefault();
+        }
         return;
     }
 

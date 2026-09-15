@@ -1,16 +1,16 @@
 import { state } from './state.js';
 
-export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
+export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLocked = false) {
     if (!overlay) return;
     const note = document.createElement('div');
     note.className = 'sticky-note';
+    if (isPinned) note.classList.add('pinned');
+    if (isLocked) note.classList.add('locked');
     note.style.left = `${x}%`;
     note.style.top = `${y}%`;
     note.tabIndex = 0;
     
-    // Se a nota vier marcada como Pinned do armazenamento, aplica as classes!
     if (isPinned) {
-        note.classList.add('pinned');
         note.classList.add('active'); 
     }
 
@@ -21,7 +21,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
     const header = document.createElement('div');
     header.className = 'note-header';
 
-    // Botão de Copiar
+    // 1. Botão de Copiar
     const copyBtn = document.createElement('button');
     copyBtn.className = 'copy-btn';
     copyBtn.title = 'Copiar texto';
@@ -34,7 +34,24 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
         setTimeout(() => { copyBtn.innerHTML = originalHTML; }, 1500);
     };
 
-    // Botão de Pin
+    // 2. Botão de Lock
+    const lockBtn = document.createElement('button');
+    lockBtn.className = 'lock-btn';
+    lockBtn.title = 'Trancar nota (Proteger contra apagamento)';
+    lockBtn.innerHTML = isLocked 
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>` // Cadeado Fechado
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`; // Cadeado Aberto
+    
+    lockBtn.onclick = (e) => {
+        e.stopPropagation();
+        const locked = note.classList.toggle('locked');
+        lockBtn.innerHTML = locked 
+            ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`
+            : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
+        saveNotesForPage(pageNum, overlay);
+    };
+
+    // 3. Botão de Pin (Fixar)
     const pinBtn = document.createElement('button');
     pinBtn.className = 'pin-btn';
     pinBtn.title = 'Manter aberta';
@@ -46,13 +63,20 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
         saveNotesForPage(pageNum, overlay);
     };
 
-    // Botão de Lixo (Apagar)
+    // 4. Botão de Lixo (Apagar)
     const delBtn = document.createElement('button');
     delBtn.className = 'del-btn';
     delBtn.title = 'Apagar nota';
     delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
     delBtn.onclick = (e) => {
         e.stopPropagation();
+        if (note.classList.contains('locked')) return;
+        
+        // Guardar no histórico para o Ctrl+Z
+        const noteData = { pageNum, x, y, text, pinned: isPinned, locked: isLocked };
+        state.noteHistory = state.noteHistory || [];
+        state.noteHistory.push({ type: 'delete', noteData, overlay });
+
         note.remove();
         saveNotesForPage(pageNum, overlay);
     };
@@ -62,6 +86,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
     textarea.placeholder = 'Escreve a tua nota...';
 
     header.appendChild(copyBtn);
+    header.appendChild(lockBtn);
     header.appendChild(pinBtn);
     header.appendChild(delBtn);
     popup.appendChild(header);
@@ -69,12 +94,9 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
     note.appendChild(popup);
     overlay.appendChild(note);
 
-    // --- LÓGICA DE DRAG & DROP (Arrastar) ---
     let hasDragged = false;
-
     note.onmousedown = (e) => {
         if (e.target.closest('.note-popup')) return;
-
         e.preventDefault();
         const startX = e.clientX;
         const startY = e.clientY;
@@ -86,12 +108,10 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
         const onMouseMove = (moveEvent) => {
             const dx = moveEvent.clientX - startX;
             const dy = moveEvent.clientY - startY;
-            
             if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
                 hasDragged = true;
                 let newX = startLeft + (dx / rect.width) * 100;
                 let newY = startTop + (dy / rect.height) * 100;
-                
                 note.style.left = `${Math.max(0, Math.min(100, newX))}%`;
                 note.style.top = `${Math.max(0, Math.min(100, newY))}%`;
             }
@@ -107,28 +127,21 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
         document.addEventListener('mouseup', onMouseUp);
     };
 
-    // --- ABRIR NOTA (Clique Simples) ---
     note.onclick = (e) => {
         if (hasDragged) return; 
         e.stopPropagation();
-
         if (note.classList.contains('pinned')) {
             note.classList.add('active');
             textarea.focus();
             return;
         }
-        
         document.querySelectorAll('.sticky-note.active').forEach(item => {
-            if (item !== note && !item.classList.contains('pinned')) {
-                item.classList.remove('active');
-            }
+            if (item !== note && !item.classList.contains('pinned')) item.classList.remove('active');
         });
-        
         note.classList.add('active');
         textarea.focus();
     };
 
-    // --- ATALHOS DE TECLADO ---
     textarea.onkeydown = (e) => {
         if (e.key === 'Escape') {
             if (!note.classList.contains('pinned')) note.classList.remove('active');
@@ -136,25 +149,17 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false) {
         }
         if (e.ctrlKey && (e.key === 'Delete' || e.key === 'Backspace')) {
             e.preventDefault();
-            note.remove();
-            saveNotesForPage(pageNum, overlay);
-        }
-    };
-    
-    note.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-            note.classList.add('active');
-            textarea.focus();
-        }
-        if (e.ctrlKey && (e.key === 'Delete' || e.key === 'Backspace')) {
-            e.preventDefault();
+            if (note.classList.contains('locked')) return;
+            
+            state.noteHistory = state.noteHistory || [];
+            state.noteHistory.push({ type: 'delete', noteData: { pageNum, x, y, text, pinned: isPinned, locked: isLocked }, overlay });
+
             note.remove();
             saveNotesForPage(pageNum, overlay);
         }
     };
 
     textarea.oninput = () => saveNotesForPage(pageNum, overlay);
-
     if (text === '') setTimeout(() => { note.classList.add('active'); textarea.focus(); }, 50);
 }
 
@@ -163,7 +168,8 @@ export function saveNotesForPage(pageNum, overlay) {
         x: parseFloat(note.style.left),
         y: parseFloat(note.style.top),
         text: note.querySelector('textarea').value,
-        pinned: note.classList.contains('pinned')
+        pinned: note.classList.contains('pinned'),
+        locked: note.classList.contains('locked')
     }));
     chrome.storage.local.set({ [`${state.currentFilename}_pg${pageNum}_notes`]: notes }, () => {
         updateNotesSidebar();
@@ -176,7 +182,7 @@ export function loadNotesForPage(pageNum) {
     overlay.innerHTML = '';
     const key = `${state.currentFilename}_pg${pageNum}_notes`;
     chrome.storage.local.get([key], result => {
-        (result[key] || []).forEach(note => addNoteToUI(overlay, pageNum, note.x, note.y, note.text, note.pinned));
+        (result[key] || []).forEach(note => addNoteToUI(overlay, pageNum, note.x, note.y, note.text, note.pinned, note.locked));
         updateNotesSidebar();
     });
 }

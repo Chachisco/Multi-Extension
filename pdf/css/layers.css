@@ -111,6 +111,18 @@
 .sticky-note.pinned .pin-btn { background: rgba(0,0,0,0.15); color: #000; }
 .sticky-note.pinned .pin-btn svg { fill: currentColor; } 
 .pin-btn svg { fill: none; }
+/* a lock for notes to avoid mistakes */
+.sticky-note.locked .del-btn {
+    display: none; 
+}
+
+.sticky-note.locked textarea {
+    background: #fdf5e6;
+    border-color: #d68910;
+}
+.lock-btn svg { width: 14px; height: 14px; }
+.sticky-note.locked .lock-btn { color: #d68910; }
+.sticky-note.pinned.locked .note-popup { border-color: #d68910; }
 
 .note-popup textarea {
     border: none; background: #fff9c4; padding: 8px 10px 10px;
