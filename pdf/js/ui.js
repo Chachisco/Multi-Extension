@@ -8,6 +8,18 @@ const header = document.getElementById('mini-header');
 const zoomInput = document.getElementById('zoom-percent');
 const pageInput = document.getElementById('page-input');
 const container = document.getElementById('pages-container');
+let wheelZoomTimer = null;
+let pendingWheelScale = null;
+
+function queueWheelZoom(delta) {
+    pendingWheelScale = (pendingWheelScale ?? state.currentScale) + delta;
+    clearTimeout(wheelZoomTimer);
+    wheelZoomTimer = setTimeout(() => {
+        const nextScale = pendingWheelScale;
+        pendingWheelScale = null;
+        updateZoom(nextScale);
+    }, 40);
+}
 
 export function setHeaderMode(mode) {
     state.headerMode = mode;
@@ -156,7 +168,7 @@ function setupGlobalEvents() {
     window.addEventListener('wheel', event => {
         if (event.ctrlKey) {
             event.preventDefault();
-            updateZoom(state.currentScale + (event.deltaY > 0 ? -0.1 : 0.1));
+            queueWheelZoom(event.deltaY > 0 ? -0.1 : 0.1);
             return;
         }
 
