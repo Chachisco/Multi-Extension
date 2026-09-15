@@ -3,7 +3,7 @@
    ========================================= */
 #mini-header {
     position: fixed; top: 0; left: 0; 
-    width: calc(100vw - 16px); 
+    width: 100vw;
     height: 40px;
     background: #1e1e1e; border-bottom: 1px solid #444;
     display: flex; align-items: center; justify-content: space-between;

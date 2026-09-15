@@ -31,6 +31,9 @@ function setupNotes() {
 async function restoreViewerState() {
     const saved = await readViewerState();
     if (saved[state.currentFilename + '_zoom']) state.currentScale = saved[state.currentFilename + '_zoom'];
+    if (Number.isFinite(saved[state.currentFilename + '_rotation'])) {
+        state.pageRotation = saved[state.currentFilename + '_rotation'];
+    }
     setHeaderMode(saved.global_header_mode || 'ghost');
     updateZoom(state.currentScale);
     if (saved[state.currentFilename]) {
