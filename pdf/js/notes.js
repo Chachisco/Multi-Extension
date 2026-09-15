@@ -60,7 +60,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
     pinBtn.onclick = (e) => {
         e.stopPropagation();
         const pinned = note.classList.toggle('pinned');
-        note.classList.toggle('active', pinned);
+        note.classList.toggle(pinned);
         saveNotesForPage(pageNum, overlay);
     };
 
