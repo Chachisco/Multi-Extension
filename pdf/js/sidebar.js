@@ -1,6 +1,7 @@
 import { state } from './state.js';
 
 const btnToggle = document.getElementById('btn-toggle-sidebar');
+const btnClose = document.getElementById('btn-close-sidebar');
 const sidebar = document.getElementById('pdf-sidebar');
 const tabOutline = document.getElementById('tab-outline');
 const tabThumbnails = document.getElementById('tab-thumbnails');
@@ -30,14 +31,15 @@ async function getOutlinePageNumber(item) {
     return (await state.pdfDoc.getPageIndex(destination[0])) + 1;
 }
 
-if (btnToggle) {
-    btnToggle.onclick = () => {
-        sidebar.classList.toggle('closed');
-        if (!sidebar.classList.contains('closed')) {
-            loadOutline();
-        }
-    };
+export function toggleSidebar() {
+    sidebar.classList.toggle('closed');
+    if (!sidebar.classList.contains('closed')) {
+        loadOutline();
+    }
 }
+
+if (btnToggle) btnToggle.onclick = toggleSidebar;
+if (btnClose) btnClose.onclick = toggleSidebar;
 
 tabOutline.onclick = () => {
     tabOutline.classList.add('active'); tabThumbnails.classList.remove('active');

@@ -4,6 +4,7 @@ import { applyAnnotation } from './annotations.js';
 import { updateZoom, fitWidth, fitHeight } from './pdf-engine.js';
 import { addNoteToUI } from './notes.js';
 import { undo, redo } from './history.js';
+import { setupDrawingTools } from './drawing.js';
 
 const header = document.getElementById('mini-header');
 const zoomInput = document.getElementById('zoom-percent');
@@ -27,6 +28,7 @@ export function setHeaderMode(mode) {
     header.className = `mode-${mode}`;
     header.classList.toggle('annotation-active', state.annotationActive);
     header.classList.toggle('eraser-active', state.eraserActive);
+    header.classList.toggle('freehand-active', state.freehandActive);
     const icons = {
         ghost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>',
         minimal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>',
@@ -38,13 +40,33 @@ export function setHeaderMode(mode) {
 
 function setAnnotationActive(active) {
     state.annotationActive = active;
+    if (active) state.freehandActive = false;
     if (active) state.eraserActive = false;
     document.getElementById('annotation-options').classList.toggle('hidden', !active);
     header.classList.toggle('annotation-active', state.annotationActive);
     header.classList.toggle('eraser-active', state.eraserActive);
+    header.classList.toggle('freehand-active', state.freehandActive);
     document.getElementById('btn-annotate').classList.toggle('tool-active', state.annotationActive);
     document.getElementById('btn-eraser').classList.toggle('tool-active', state.eraserActive);
+    document.getElementById('btn-draw').classList.toggle('tool-active', state.freehandActive);
+    document.querySelectorAll('.drawing-canvas').forEach(canvas => canvas.classList.toggle('active', state.freehandActive));
     document.querySelectorAll('.annotation-layer').forEach(layer => layer.classList.toggle('eraser-active', state.eraserActive));
+}
+
+function setFreehandActive(active) {
+    state.freehandActive = active;
+    if (active) {
+        state.annotationActive = false;
+        state.eraserActive = false;
+    }
+    document.getElementById('annotation-options').classList.toggle('hidden', !active && !state.annotationActive);
+    header.classList.toggle('annotation-active', state.annotationActive);
+    header.classList.toggle('eraser-active', state.eraserActive);
+    header.classList.toggle('freehand-active', active);
+    document.getElementById('btn-draw').classList.toggle('tool-active', active);
+    document.getElementById('btn-annotate').classList.toggle('tool-active', state.annotationActive);
+    document.getElementById('btn-eraser').classList.toggle('tool-active', state.eraserActive);
+    document.querySelectorAll('.drawing-canvas').forEach(canvas => canvas.classList.toggle('active', active));
 }
 
 export function setupUI() {
@@ -53,8 +75,11 @@ export function setupUI() {
     document.getElementById('btn-eraser').onclick = () => {
         state.eraserActive = !state.eraserActive;
         if (state.eraserActive) state.annotationActive = false;
+        state.freehandActive = false;
         setAnnotationActive(state.annotationActive);
     };
+    document.getElementById('btn-draw').onclick = () => setFreehandActive(!state.freehandActive);
+    setupDrawingTools();
     
     // Zoom e Modos Visuais
     document.getElementById('btn-header-mode').onclick = () => cycleHeaderMode();

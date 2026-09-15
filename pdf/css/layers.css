@@ -27,6 +27,17 @@
     background-color: transparent !important;
 }
 
+.drawing-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+}
+.drawing-canvas.active {
+    pointer-events: auto;
+    cursor: crosshair;
+}
+
 .textLayer {
     position: absolute;
     inset: 0;
