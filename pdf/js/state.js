@@ -13,7 +13,6 @@ export const state = {
     renderTasks: {},
     renderingStates: {},
     textLayerTasks: {},
-    annotationHistory: [],
     annotationLoadVersions: {},
     pendingAnnotationRemovals: new Map(),
 };

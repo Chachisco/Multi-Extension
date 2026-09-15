@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { loadAnnotationsForPage } from './annotations.js';
 import { loadNotesForPage } from './notes.js';
 import { saveState } from './storage.js';
+import { activate as activateHistory } from './history.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.mjs';
 
@@ -40,9 +41,12 @@ export async function loadPDF(source, filename) {
     state.renderTasks = {};
     state.renderingStates = {};
     state.textLayerTasks = {};
+    state.annotationLoadVersions = {};
+    state.pendingAnnotationRemovals = new Map();
     lastStoredPage = null;
 
     state.currentFilename = filename;
+    activateHistory(filename);
     document.title = filename || 'UniPDF Pro';
     const loadingTask = pdfjsLib.getDocument(typeof source === 'string' ? { url: source } : { data: source });
     state.pdfDoc = await loadingTask.promise;

@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { record } from './history.js';
 
 export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLocked = false) {
     if (!overlay) return;
@@ -70,15 +71,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
     delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
     delBtn.onclick = (e) => {
         e.stopPropagation();
-        if (note.classList.contains('locked')) return;
-        
-        // Guardar no histórico para o Ctrl+Z
-        const noteData = { pageNum, x, y, text, pinned: isPinned, locked: isLocked };
-        state.noteHistory = state.noteHistory || [];
-        state.noteHistory.push({ type: 'delete', noteData, overlay });
-
-        note.remove();
-        saveNotesForPage(pageNum, overlay);
+        deleteNote();
     };
 
     const textarea = document.createElement('textarea');
@@ -149,18 +142,43 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         }
         if (e.ctrlKey && (e.key === 'Delete' || e.key === 'Backspace')) {
             e.preventDefault();
-            if (note.classList.contains('locked')) return;
-            
-            state.noteHistory = state.noteHistory || [];
-            state.noteHistory.push({ type: 'delete', noteData: { pageNum, x, y, text, pinned: isPinned, locked: isLocked }, overlay });
-
-            note.remove();
-            saveNotesForPage(pageNum, overlay);
+            deleteNote();
         }
     };
 
     textarea.oninput = () => saveNotesForPage(pageNum, overlay);
     if (text === '') setTimeout(() => { note.classList.add('active'); textarea.focus(); }, 50);
+
+    let deletedNote = note;
+    function deleteNote() {
+        if (note.classList.contains('locked')) return;
+
+        const noteData = {
+            pageNum,
+            x: parseFloat(note.style.left),
+            y: parseFloat(note.style.top),
+            text: textarea.value,
+            pinned: note.classList.contains('pinned'),
+            locked: note.classList.contains('locked')
+        };
+
+        note.remove();
+        saveNotesForPage(pageNum, overlay);
+        record({
+            label: 'Apagar nota',
+            undo: () => {
+                deletedNote = addNoteToUI(overlay, pageNum, noteData.x, noteData.y, noteData.text, noteData.pinned, noteData.locked);
+                saveNotesForPage(pageNum, overlay);
+            },
+            redo: () => {
+                if (deletedNote?.classList.contains('locked')) return false;
+                deletedNote?.remove();
+                saveNotesForPage(pageNum, overlay);
+            }
+        });
+    }
+
+    return note;
 }
 
 export function saveNotesForPage(pageNum, overlay) {

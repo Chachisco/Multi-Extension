@@ -1,8 +1,9 @@
 import { state } from './state.js';
 import { saveState } from './storage.js';
-import { applyAnnotation, undoAnnotation } from './annotations.js';
+import { applyAnnotation } from './annotations.js';
 import { updateZoom, fitWidth, fitHeight } from './pdf-engine.js';
 import { addNoteToUI } from './notes.js';
+import { undo, redo } from './history.js';
 
 const header = document.getElementById('mini-header');
 const zoomInput = document.getElementById('zoom-percent');
@@ -166,20 +167,20 @@ function setupGlobalEvents() {
     }, { passive: true });
 
     window.addEventListener('wheel', event => {
-        if (event.ctrlKey) {
+        if (event.ctrlKey) { // ctrl + wheel -> increases/decreases zoom by 10%
             event.preventDefault();
             queueWheelZoom(event.deltaY > 0 ? -0.1 : 0.1);
             return;
         }
 
-        if (event.shiftKey && state.focusMode > 0) {
+        if (event.shiftKey && state.focusMode > 0) { // shift + wheel -> increases focus size
             event.preventDefault();
             state.focusSize = event.deltaY > 0 ? Math.max(10, state.focusSize - 10) : Math.min(500, state.focusSize + 10);
             document.getElementById('reading-ruler').style.setProperty('--focus-size', `${state.focusSize}px`);
             return;
         }
 
-        if (state.focusMode === 2) {
+        if (state.focusMode === 2) { // wheel -> in the ruler focus mode scrolls depending on focus size
             const ruler = document.getElementById('reading-ruler');
             const viewport = document.getElementById('viewport');
             if (ruler?.classList.contains('mode-line') && viewport) {
@@ -194,7 +195,7 @@ function setupGlobalEvents() {
         }
     }, { passive: false });
 
-    header.addEventListener('wheel', event => {
+    header.addEventListener('wheel', event => { // when the header is too big to big to fit, it can be scrolled
         if (event.ctrlKey) return;
         event.preventDefault();
         header.scrollLeft += event.deltaX + event.deltaY
@@ -207,40 +208,43 @@ function handleKeydown(event) {
         return;
     }
 
-    if (event.ctrlKey && event.key.toLowerCase() === 'f') {
+    if (event.ctrlKey && event.key.toLowerCase() === 'f') { //ctrl + 'f' -> search
         event.preventDefault();
         if (typeof window.toggleWebSearch === 'function') window.toggleWebSearch();
         return;
     }
     
-    if (event.ctrlKey && event.key.toLowerCase() === 'z') {
-        if (!undoAnnotation() && state.noteHistory && state.noteHistory.length > 0) {
-            event.preventDefault();
-            const lastAction = state.noteHistory.pop();
-            if (lastAction.type === 'delete') {
-                const { pageNum, x, y, text, pinned, locked } = lastAction.noteData;
-                addNoteToUI(lastAction.overlay, pageNum, x, y, text, pinned, locked);
-                saveNotesForPage(pageNum, lastAction.overlay);
-            }
-        } else {
-            event.preventDefault();
-        }
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'z') { //ctrl + shift + 'z' -> redo
+        event.preventDefault();
+        redo();
         return;
     }
 
-    if (event.ctrlKey && ['+', '-', '=', '0'].includes(event.key)) {
+    if (event.ctrlKey && event.key.toLowerCase() === 'y') { //ctrl + 'y' -> redo
         event.preventDefault();
-        if (event.key === '+' || event.key === '=') updateZoom(state.currentScale + 0.1);
-        if (event.key === '-') updateZoom(state.currentScale - 0.1);
-        if (event.key === '0') updateZoom(1);
+        redo();
+        return;
+    }
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'z') { //ctrl + 'z' -> undo
+        event.preventDefault();
+        undo();
+        return;
+    }
+
+    if (event.ctrlKey && ['+', '-', '=', '0'].includes(event.key)) { // zoom
+        event.preventDefault();
+        if (event.key === '+') updateZoom(state.currentScale + 0.1); //ctrl + '+' -> +10% zoom
+        if (event.key === '-') updateZoom(state.currentScale - 0.1); // ctrl + '-' -> -10% zoom
+        if (event.key === '0') updateZoom(1); //ctrl + '0' -> set zoom to 100%
         return;
     }
     
-    if (event.key.toLowerCase() === 'h') cycleHeaderMode();
+    if (event.key.toLowerCase() === 'h') cycleHeaderMode(); // 'h' -> clycles through header modes
 
     const currentPage = getCurrentPageNumber();
 
-    if (event.key === 'ArrowRight' && !event.altKey) {
+    if (event.key === 'ArrowRight' && !event.altKey) { // '→' + alt -> change index/pages sidebar to right side
         event.preventDefault();
         const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
         const wrapper = document.getElementById(`page-wrapper-${next}`);
@@ -251,7 +255,7 @@ function handleKeydown(event) {
         }
     }
 
-    if (event.key === 'ArrowLeft' && !event.altKey) {
+    if (event.key === 'ArrowLeft' && !event.altKey) { // '←' + alt -> change index/pages sidebar to left side 
         event.preventDefault();
         const prev = Math.max(1, currentPage - 1);
         const wrapper = document.getElementById(`page-wrapper-${prev}`);
@@ -262,7 +266,7 @@ function handleKeydown(event) {
         }
     }
 
-    if (event.key === 'ArrowDown') {
+    if (event.key === 'ArrowDown') { // '↓' -> moves to the next page
         event.preventDefault();
         const ruler = document.getElementById('reading-ruler');
         if (ruler?.classList.contains('mode-line')) {
@@ -277,7 +281,7 @@ function handleKeydown(event) {
         }
     }
 
-    if (event.key === 'ArrowUp') {
+    if (event.key === 'ArrowUp') { // '↑' -> moves to the next page
         event.preventDefault();
         const ruler = document.getElementById('reading-ruler');
         if (ruler?.classList.contains('mode-line')) {
