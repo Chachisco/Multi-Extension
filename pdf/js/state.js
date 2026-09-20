@@ -1,5 +1,6 @@
 export const state = {
     pdfDoc: null,
+    pdfBytes: null,
     currentFilename: '',
     currentScale: 1,
     pageRotation: 0,

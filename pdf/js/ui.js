@@ -5,6 +5,9 @@ import { updateZoom, fitWidth, fitHeight, rotatePages } from './pdf-engine.js';
 import { addNoteToUI } from './notes.js';
 import { undo, redo } from './history.js';
 import { setupDrawingTools } from './drawing.js';
+import * as PDFLib from '../lib/pdf_lib/pdf-lib.min.js';
+const { PDFDocument, rgb } = window.PDFLib || PDFLib;
+
 
 const header = document.getElementById('mini-header');
 const zoomInput = document.getElementById('zoom-percent');
@@ -112,7 +115,25 @@ export function setupUI() {
         }
     };
 
-    // Botões Extra
+    // Botões header left
+    const btnDownload = document.getElementById('btn-download');
+    const dlMenu = document.getElementById('download-menu');
+    
+    if (btnDownload && dlMenu) {
+        btnDownload.onclick = (e) => {
+            e.stopPropagation();
+            dlMenu.classList.toggle('hidden');
+        };
+        
+        document.addEventListener('click', () => {
+            dlMenu.classList.add('hidden');
+        });
+        
+        document.getElementById('btn-dl-normal').onclick = downloadNormal;
+        document.getElementById('btn-dl-burn').onclick = downloadBurnIn;
+        document.getElementById('btn-dl-export').onclick = downloadWithNotes;
+    }
+
     const btnCopy = document.getElementById('btn-copy-url');
     if (btnCopy) {
         btnCopy.onclick = (e) => handleCopy(e, e.ctrlKey, btnCopy);
@@ -230,6 +251,25 @@ function setupGlobalEvents() {
 }
 
 function handleKeydown(event) {
+     if (event.ctrlKey && event.key.toLowerCase() === 'a') { //ctrl + 'a' -> selecionar o conteúdo do pdf inteiro, excluindo pagina e zoom
+        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+            return; 
+        }
+
+        event.preventDefault(); 
+        const currentPage = getCurrentPageNumber();
+        const textLayer = document.querySelector(`#page-wrapper-${currentPage} .textLayer`);
+        
+        if (textLayer) {
+            const range = document.createRange();
+            range.selectNodeContents(textLayer);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+        return;
+    }
+
     if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') {
         if (event.key === 'Escape') document.activeElement.blur();
         return;
@@ -256,6 +296,19 @@ function handleKeydown(event) {
     if (event.ctrlKey && event.key.toLowerCase() === 'z') { //ctrl + 'z' -> undo
         event.preventDefault();
         undo();
+        return;
+    }
+
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 's') { //ctrl + 's' -> save file
+        event.preventDefault();
+        downloadNormal();
+        downloadWithNotes();
+        return;
+    }
+
+    if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 's') { //ctrl + 's' -> save file
+        event.preventDefault();
+        downloadNormal();
         return;
     }
 
@@ -397,4 +450,140 @@ function getCurrentPageNumber() {
 function getFocusLineHeight(ruler) {
     const value = parseFloat(getComputedStyle(ruler).getPropertyValue('--focus-line-height'));
     return Number.isFinite(value) ? value : 25;
+}
+
+function triggerExtensionDownload(blob, suggestedFilename, onFilenameChosen) {
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    reader.onloadend = () => {
+        const base64data = reader.result;
+        
+        chrome.downloads.download({
+            url: base64data,
+            filename: suggestedFilename,
+            saveAs: true
+        }, (downloadId) => {
+            if (chrome.runtime.lastError || !downloadId) {
+                console.error("Download cancelado ou com erro.");
+                return;
+            }
+
+            if (typeof onFilenameChosen === 'function') {
+                const listener = (downloadDelta) => {
+                    if (downloadDelta.id === downloadId && downloadDelta.filename) {
+                        chrome.downloads.onChanged.removeListener(listener);
+                        
+                        const fullPath = downloadDelta.filename.current;
+                        const finalName = fullPath.split(/[\\/]/).pop(); 
+                        
+                        onFilenameChosen(finalName);
+                    }
+                };
+                chrome.downloads.onChanged.addListener(listener);
+            }
+        });
+    };
+}
+
+export function downloadNormal() {
+    if (!state.pdfBytes) return;
+    const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
+    triggerExtensionDownload(blob, state.currentFilename || 'documento.pdf');
+}
+
+export async function downloadBurnIn() {
+    if (!state.pdfBytes) return;
+
+    try {
+        const pdfDoc = await PDFDocument.load(state.pdfBytes);
+        const pages = pdfDoc.getPages();
+        const items = await new Promise(resolve => chrome.storage.local.get(null, resolve));
+        const prefix = `${state.currentFilename}_pg`;
+
+        for (let i = 0; i < pages.length; i++) {
+            const pageNum = i + 1;
+            const page = pages[i];
+            const { width, height } = page.getSize();
+
+            const annots = items[`${prefix}${pageNum}_annotations`] || [];
+            annots.forEach(a => {
+                const realX = (a.x / 100) * width;
+                const realY = height - ((a.y / 100) * height) - ((a.height / 100) * height);
+                const realW = (a.width / 100) * width;
+                const realH = (a.height / 100) * height;
+
+                const r = parseInt(a.color.slice(1,3), 16) / 255;
+                const g = parseInt(a.color.slice(3,5), 16) / 255;
+                const b = parseInt(a.color.slice(5,7), 16) / 255;
+
+                if (a.mode === 'highlight') {
+                    page.drawRectangle({
+                        x: realX, y: realY, width: realW, height: realH,
+                        color: rgb(r, g, b), opacity: 0.4
+                    });
+                } else if (a.mode === 'underline') {
+                    page.drawLine({
+                        start: { x: realX, y: realY },
+                        end: { x: realX + realW, y: realY },
+                        color: rgb(r, g, b), thickness: a.size
+                    });
+                }
+            });
+
+            const notes = items[`${prefix}${pageNum}_notes`] || [];
+            notes.forEach(n => {
+                const realX = (n.x / 100) * width;
+                const realY = height - ((n.y / 100) * height) - 20;
+
+                page.drawCircle({ x: realX + 10, y: realY + 10, size: 10, color: rgb(0.9, 0.7, 0) });
+                if (n.text) {
+                    page.drawText(n.text, {
+                        x: realX + 25, y: realY + 5, size: 12, color: rgb(0, 0, 0)
+                    });
+                }
+            });
+        }
+
+        const finalBytes = await pdfDoc.save();
+        const blob = new Blob([finalBytes], { type: 'application/pdf' });
+        
+        const suggName = (state.currentFilename ? state.currentFilename.replace('.pdf', '') : 'documento') + '_com_notas.pdf';
+        triggerExtensionDownload(blob, suggName);
+
+    } catch (e) {
+        console.error("Erro ao gerar PDF com notas:", e);
+        alert("Ocorreu um erro ao exportar as notas.");
+    }
+}
+
+export async function downloadWithNotes() {
+    if (!state.pdfBytes) return;
+
+    const suggName = (state.currentFilename ? state.currentFilename.replace('.pdf', '') : 'documento') + '_copia.pdf';
+    const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
+
+    triggerExtensionDownload(blob, suggName, async (finalChosenName) => {
+        
+        // Vai buscar as notas à base de dados
+        const items = await new Promise(resolve => chrome.storage.local.get(null, resolve));
+        const oldPrefix = `${state.currentFilename}_pg`;
+        const newPrefix = `${finalChosenName}_pg`;
+        const newStorage = {};
+        
+        let hasData = false;
+
+        Object.keys(items).forEach(key => {
+            if (key.startsWith(oldPrefix)) {
+                const suffix = key.substring(oldPrefix.length); 
+                newStorage[`${newPrefix}${suffix}`] = items[key];
+                hasData = true;
+            }
+        });
+
+        if (hasData) {
+            chrome.storage.local.set(newStorage, () => {
+                console.log(`Notas copiadas silenciosamente para o ficheiro associado: ${finalChosenName}`);
+            });
+        }
+    });
 }

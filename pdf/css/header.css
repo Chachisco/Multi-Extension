@@ -10,9 +10,9 @@
     padding: 0 20px; z-index: 2000; color: #eee;
     transition: all 0.2s ease-in-out;
     box-sizing: border-box;
-    overflow-x: auto; 
-    overflow-y: hidden;
-    scrollbar-width: none;
+    overflow: visible !important;
+    user-select: none;
+    -webkit-user-select: none;
     gap: 15px;
 }
 
@@ -131,7 +131,7 @@
 /* =========================================
    6. DESIGN DOS BOTÕES (Toolbar)
    ========================================= */
-#annotation-toolbar { display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: 16px; }
+#annotation-toolbar { display: flex; align-items: center; gap: 4px; margin-left: auto;}
 
 #annotation-toolbar button, .zoom-controls button, #search-panel button {
     border: none; background: transparent; color: #ccc; cursor: pointer;
@@ -171,3 +171,62 @@
 .zoom-controls button, #search-panel button { padding: 6px; }
 #page-input, #zoom-percent { background: #444; border: none; color: white; width: 50px; text-align: center; border-radius: 3px; }
 .divider { color: #555; margin: 0 5px; }
+
+.dropdown-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 110%; /* Fica ligeiramente abaixo do header */
+    left: 0;
+    background: #1e1e1e;
+    border: 1px solid #444;
+    border-radius: 6px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.7);
+    display: flex;
+    flex-direction: column;
+    min-width: 260px;
+    z-index: 3000;
+    overflow: hidden;
+}
+
+.dropdown-menu.hidden {
+    display: none !important;
+}
+
+/* Sobrescrever o CSS global dos botões do header para esta lista */
+.dropdown-menu button {
+    display: flex !important;
+    flex-direction: column;
+    align-items: flex-start !important;
+    padding: 10px 14px !important;
+    width: 100%;
+    height: auto !important;
+    border-radius: 0 !important;
+    border-bottom: 1px solid #333 !important;
+    color: #eee !important;
+}
+
+.dropdown-menu button:last-child {
+    border-bottom: none !important;
+}
+
+.dropdown-menu button strong {
+    font-size: 13px;
+    font-family: sans-serif;
+}
+
+.dropdown-menu button span {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+}
+
+.dropdown-menu button:hover {
+    background: #333 !important;
+}
+.dropdown-menu button:hover span {
+    color: #ccc;
+}

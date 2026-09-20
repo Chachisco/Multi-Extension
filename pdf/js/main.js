@@ -48,17 +48,38 @@ async function openSource(source, filename) {
 
 fileInput.onchange = async () => {
     const file = fileInput.files?.[0];
-    if (file) await openSource(await file.arrayBuffer(), file.name);
+    if (file) {
+        const buffer = await file.arrayBuffer();
+        state.pdfBytes = buffer; // Guarda o ficheiro original na memória
+        await openSource(buffer.slice(0), file.name);
+    }
 };
 
 async function init() {
     setupAnnotationOptions();
     setupUI();
     setupNotes();
+    
     const fileUrl = new URLSearchParams(window.location.search).get('file');
+    
     if (fileUrl) {
         const decodedUrl = decodeURIComponent(fileUrl);
-        await openSource(decodedUrl, decodedUrl.split('/').pop().split(/[?#]/)[0]);
+        
+        try {
+            // Vai buscar o PDF original ao URL
+            const res = await fetch(decodedUrl);
+            const buffer = await res.arrayBuffer();
+            
+            state.pdfBytes = buffer; // Guarda o ficheiro original na memória
+            
+            const filename = decodedUrl.split('/').pop().split(/[?#]/)[0] || "documento.pdf";
+            await openSource(buffer.slice(0), filename);
+
+        } catch (error) {
+            console.error("Erro ao carregar o PDF do URL:", error);
+            alert("Não foi possível carregar o PDF. Verifica a tua ligação ou tenta abrir manualmente.");
+            fileInput.click();
+        }
     } else {
         fileInput.click();
     }

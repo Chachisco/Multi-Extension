@@ -5,6 +5,13 @@ body {
     height: 100vh;
     overflow: hidden;
     font-family: sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+input, textarea {
+    user-select: auto;
+    -webkit-user-select: auto;
 }
 
 #viewport {
@@ -68,3 +75,57 @@ body.sidebar-open-right #notes-sidebar {
     right: auto;
     z-index: 1500;
 }
+
+.page-actions-overlay {
+    position: absolute;
+    top: 0;
+    right: -44px;
+    height: 100%;
+    width: 34px;
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+
+.page-actions-overlay::before {
+    content: ''; position: absolute; left: -20px; top: 0; width: 20px; height: 100%;
+}
+
+.page-wrapper.mouse-active .page-actions-overlay,
+.page-actions-overlay:hover {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.page-wrapper:hover .page-actions-overlay {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.page-actions-buttons {
+    position: sticky;
+    top: 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.page-actions-buttons button {
+    background: #1e1e1e;
+    border: 1px solid #444;
+    color: #ccc;
+    cursor: pointer;
+    width: 34px; 
+    height: 34px; 
+    border-radius: 6px; 
+    padding: 0;
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    transition: 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.page-actions-buttons button:hover { background: #0376db; color: white; border-color: #0376db; }
+.page-actions-buttons button svg { width: 16px; height: 16px; }
+.page-actions-buttons button.btn-page-delete:hover { background: #e51400; border-color: #e51400; }

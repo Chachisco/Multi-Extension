@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/layers.css">
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/sidebar.css">
+    <script src="lib/pdf_lib/pdf-lib.min.js"></script>
 </head>
 <body>
     <div id="notes-sidebar"></div>
@@ -69,6 +70,28 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16"/><path d="M8 8h8"/><path d="M8 16h8"/></svg>
             </button>
             <span class="divider">|</span>
+            <div class="dropdown-wrapper" id="download-dropdown-wrapper">
+                <button id="btn-download" title="Opções de Transferência">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" x2="12" y1="15" y2="3"/>
+                    </svg>
+                </button>
+                <div class="dropdown-menu" id="download-menu">
+                    <button id="btn-dl-normal">
+                        <strong>Guardar como</strong>
+                    </button>
+                    <button id="btn-dl-burn">
+                        <strong>Guardar como (embutir Notas)</strong>
+                        <span>(Notas e desenhos visíveis para todos)</span>
+                    </button>
+                    <button id="btn-dl-export">
+                        <strong>Guardar como (Copiar Notas)</strong>
+                        <span>(Cria um novo PDF e mantém as notas atuais)</span>
+                    </button>
+                </div>
+            </div>
             <button id="btn-add-note" title="Criar Nova Nota (Centro da Página)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             </button>
@@ -120,7 +143,6 @@
         
         <div class="zoom-controls">
             <span class="divider">|</span>
-
             <button id="btn-header-mode" title="Mudar modo (H)"></button>
             <span class="divider">|</span>
             <button id="btn-zoom-out" title="Diminuir (Ctrl + -)">

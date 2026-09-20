@@ -1,4 +1,4 @@
-import * as pdfjsLib from '../lib/build/pdf.mjs';
+import * as pdfjsLib from '../lib/pdf_js/build/pdf.mjs';
 import { state } from './state.js';
 import { loadAnnotationsForPage } from './annotations.js';
 import { loadNotesForPage } from './notes.js';
@@ -6,8 +6,9 @@ import { saveState } from './storage.js';
 import { activate as activateHistory } from './history.js';
 import { initDrawingLayer, resizeDrawingCanvas, loadDrawingsForPage } from './drawing.js';
 import { TextLayerBuilder } from './text-layer-builder.js';
+import { deleteSinglePage, rotateSinglePage } from './pdf_editor.js';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/build/pdf.worker.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf_js/build/pdf.worker.mjs';
 
 const container = document.getElementById('pages-container');
 const viewport = document.getElementById('viewport');
@@ -55,10 +56,10 @@ export async function loadPDF(source, filename) {
     const documentSource = typeof source === 'string' ? { url: source } : { data: source };
     const loadingTask = pdfjsLib.getDocument({
         ...documentSource,
-        cMapUrl: './lib/web/cmaps/',
+        cMapUrl: './lib/pdf_js/web/cmaps/',
         cMapPacked: true,
-        standardFontDataUrl: './lib/web/standard_fonts/',
-        wasmUrl: './lib/web/wasm/'
+        standardFontDataUrl: './lib/pdf_js/web/standard_fonts/',
+        wasmUrl: './lib/pdf_js/web/wasm/'
     });
     state.pdfDoc = await loadingTask.promise;
     
@@ -78,7 +79,7 @@ export async function loadPDF(source, filename) {
     // 2. Criar as caixas com as medidas reais de cada uma
     pages.forEach((page, index) => {
         const pageNum = index + 1;
-        const vp = page.getViewport({ scale: state.currentScale, rotation: state.pageRotation });
+        const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
 
         const wrapper = document.createElement('div');
         wrapper.className = 'page-wrapper';
@@ -89,9 +90,59 @@ export async function loadPDF(source, filename) {
         wrapper.style.width = `${Math.floor(vp.width)}px`;
         wrapper.style.height = `${Math.floor(vp.height)}px`;
         
-        wrapper.innerHTML = '<canvas></canvas><canvas class="drawing-canvas"></canvas><div class="pdf-links-layer"></div><div class="annotation-layer"></div><div class="textLayer"></div><div class="notes-overlay"></div>';
+        wrapper.innerHTML = `
+            <div class="page-actions-overlay">
+                <div class="page-actions-buttons">
+                    <button class="btn-page-copy" title="Copiar texto desta página">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button class="btn-page-rotate" title="Rodar 90º">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.66-5.65"/></svg>
+                    </button>
+                    <button class="btn-page-delete" title="Apagar Página">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                </div>
+            </div>
+            <canvas></canvas>
+            <canvas class="drawing-canvas"></canvas>
+            <div class="pdf-links-layer"></div>
+            <div class="annotation-layer"></div>
+            <div class="textLayer"></div>
+            <div class="notes-overlay"></div>
+        `;
         container.appendChild(wrapper);
         initDrawingLayer(wrapper, pageNum);
+
+        // LÓGICA DO BOTÃO COPIAR
+        wrapper.querySelector('.btn-page-copy').onclick = () => {
+            const textLayer = wrapper.querySelector('.textLayer');
+            if (textLayer) {
+                let text = '';
+                textLayer.querySelectorAll('span').forEach(span => { text += span.textContent + ' '; });
+                navigator.clipboard.writeText(text.trim());
+                
+                // Pisca a verde
+                const btn = wrapper.querySelector('.btn-page-copy');
+                const origHTML = btn.innerHTML;
+                btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#8be28b" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`;
+                setTimeout(() => btn.innerHTML = origHTML, 2000);
+            }
+        };
+
+
+        wrapper.querySelector('.btn-page-rotate').onclick = () => {
+             rotateSinglePage(pageNum, 90); 
+        };
+        wrapper.querySelector('.btn-page-delete').onclick = () => {
+            if (state.pdfDoc.numPages <= 1) {
+                alert("Não podes apagar a última página do documento!");
+                return;
+            }
+            if (confirm(`Tens a certeza que queres apagar a página ${pageNum}?`)) {
+                deleteSinglePage(pageNum);
+            }
+        };
     });
 
     setupObserver();
@@ -110,7 +161,7 @@ export async function renderPage(pageNum) {
     const dpr = window.devicePixelRatio || 1;
     try {
         const page = await getPage(pageNum);
-        const pageViewport = page.getViewport({ scale: state.currentScale, rotation: state.pageRotation });
+        const pageViewport = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
         const canvas = wrapper.querySelector('canvas:not(.drawing-canvas)');
         const context = canvas.getContext('2d', { alpha: false });
         const textLayerDiv = wrapper.querySelector('.textLayer');
@@ -200,7 +251,7 @@ export function renderVisiblePages() {
 }
 
 function updatePageGeometry(page, pageNum) {
-    const vp = page.getViewport({ scale: state.currentScale, rotation: state.pageRotation });
+    const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
     const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
 
     if (!wrapper) return;
@@ -259,12 +310,12 @@ export async function updateZoom(newScale) {
 
 export async function fitWidth() {
     const page = await state.pdfDoc.getPage(1);
-    updateZoom((window.innerWidth - 35) / page.getViewport({ scale: 1, rotation: state.pageRotation }).width);
+    updateZoom((window.innerWidth - 35) / page.getViewport({ scale: 1, rotation: (page.rotate || 0) + state.pageRotation }).width);
 }
 
 export async function fitHeight() {
     const page = await state.pdfDoc.getPage(1);
-    updateZoom((window.innerHeight - 50) / page.getViewport({ scale: 1, rotation: state.pageRotation }).height);
+    updateZoom((window.innerHeight - 50) / page.getViewport({ scale: 1, rotation: (page.rotate || 0) + state.pageRotation }).height);
 }
 
 export function rotatePages(delta) {

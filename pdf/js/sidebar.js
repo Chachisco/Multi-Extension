@@ -1,4 +1,7 @@
 import { state } from './state.js';
+import { reorderPDFPages, deleteSinglePage, rotateSinglePage } from './pdf_editor.js';
+
+
 
 const btnToggle = document.getElementById('btn-toggle-sidebar');
 const btnClose = document.getElementById('btn-close-sidebar');
@@ -72,6 +75,10 @@ window.addEventListener('pdf-document-loaded', () => {
     thumbnailsRendered = false;
     viewThumbnails.innerHTML = '';
     viewOutline.innerHTML = '';
+
+    if (tabThumbnails.classList.contains('active') && !sidebar.classList.contains('closed')) {
+        renderThumbnails();
+    }
 });
 
 window.addEventListener('pdf-page-changed', event => {
@@ -202,7 +209,90 @@ async function renderThumbnails() {
         label.className = 'thumbnail-label';
         label.textContent = i;
 
+        // --- CRIAR O MENU FLUTUANTE DE AÇÕES ---
+        const actions = document.createElement('div');
+        actions.className = 'thumbnail-actions show-right'; // Padrão à direita
+        
+        // Botão Rodar 90º
+        const btnRotate = document.createElement('button');
+        btnRotate.title = "Rodar Página";
+        btnRotate.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.66-5.65"/></svg>`;
+        btnRotate.onclick = (e) => {
+            e.stopPropagation();
+            console.log("Rodar página", i);
+            rotateSinglePage(i, 90)
+        };
+
+        // Botão Apagar Página
+        const btnDelete = document.createElement('button');
+        btnDelete.className = 'btn-thumb-delete';
+        btnDelete.title = "Apagar Página";
+        btnDelete.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+        btnDelete.onclick = (e) => {
+            e.stopPropagation();
+             if (state.pdfDoc.numPages <= 1) {
+                alert("Não podes apagar a única página do documento!");
+                return;
+            }
+            if(confirm(`Tens a certeza que queres apagar a página ${i}?`)) {
+                console.log("Apagar página", i);
+                deleteSinglePage(i)
+            }
+        };
+
+        thumbWrapper.draggable = true;
+        
+        thumbWrapper.ondragstart = (e) => {
+            e.dataTransfer.setData('text/plain', i);
+            thumbWrapper.style.opacity = '0.5';
+        };
+        
+        thumbWrapper.ondragend = () => {
+            thumbWrapper.style.opacity = '1';
+            document.querySelectorAll('.thumbnail-wrapper').forEach(w => w.classList.remove('drag-over'));
+        };
+        
+        thumbWrapper.ondragover = (e) => {
+            e.preventDefault();
+        };
+
+        // Entrar na zona: Adiciona a linha azul
+        thumbWrapper.ondragenter = (e) => {
+            e.preventDefault();
+            thumbWrapper.classList.add('drag-over');
+        };
+
+        // Sair da zona: Remove a linha azul
+        thumbWrapper.ondragleave = (e) => {
+            thumbWrapper.classList.remove('drag-over');
+        };
+
+        thumbWrapper.ondrop = (e) => {
+            e.preventDefault();
+            thumbWrapper.classList.remove('drag-over');
+            const fromPage = parseInt(e.dataTransfer.getData('text/plain'), 10);
+            const toPage = i;
+
+            if (fromPage !== toPage && fromPage) {
+                reorderPDFPages(fromPage, toPage);
+            }
+        };
+
+        actions.appendChild(btnRotate);
+        actions.appendChild(btnDelete);
+
+        thumbWrapper.onmouseenter = () => {
+            const rect = thumbWrapper.getBoundingClientRect();
+            const sidebarRect = viewThumbnails.getBoundingClientRect();
+            if (rect.right > sidebarRect.right - 50) {
+                actions.classList.replace('show-right', 'show-left');
+            } else {
+                actions.classList.replace('show-left', 'show-right');
+            }
+        };
+
         thumbWrapper.appendChild(canvas);
+        thumbWrapper.appendChild(actions);
         thumbWrapper.appendChild(label);
         viewThumbnails.appendChild(thumbWrapper);
 
@@ -227,7 +317,7 @@ async function renderThumbnail(wrapper) {
     const pageNum = Number(wrapper.dataset.pageNumber);
     const canvas = wrapper.querySelector('canvas');
     const page = await state.pdfDoc.getPage(pageNum);
-    const thumbnailViewport = page.getViewport({ scale: 0.2, rotation: state.pageRotation });
+    const thumbnailViewport = page.getViewport({ scale: 0.3, rotation: (page.rotate || 0) + state.pageRotation });
     canvas.width = Math.ceil(thumbnailViewport.width);
     canvas.height = Math.ceil(thumbnailViewport.height);
     await page.render({
