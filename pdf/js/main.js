@@ -50,7 +50,7 @@ fileInput.onchange = async () => {
     const file = fileInput.files?.[0];
     if (file) {
         const buffer = await file.arrayBuffer();
-        state.pdfBytes = buffer; // Guarda o ficheiro original na memória
+        state.pdfBytes = buffer;
         await openSource(buffer.slice(0), file.name);
     }
 };

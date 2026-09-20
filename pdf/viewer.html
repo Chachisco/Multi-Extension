@@ -95,8 +95,16 @@
                     </button>
                 </div>
             </div>
-            <button id="btn-add-note" title="Criar Nova Nota (Centro da Página)">
+            <button id="btn-merge-pdf" title="Juntar PDF">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button id="btn-add-note" title="Criar Nova Nota (Centro da Página)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/>
+                    <line x1="9" y1="15" x2="15" y2="15"/>
+                </svg>
             </button>
             <button id="btn-copy-url" title="Copiar Caminho (Esquerdo: Win | Direito: Linux)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -187,6 +195,20 @@
 
     <input type="range" id="lateral-slider" min="-100" max="100" value="0">
     <input type="file" id="file-input" style="display:none" accept="application/pdf">
+
+    <input type="file" id="merge-file-input" style="display:none" accept="application/pdf">
+
+    <div id="modal-merge" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3>Juntar PDF</h3>
+            <p>Escolhe a página (do documento atual) a partir da qual desejas inserir o novo PDF. Se deixares em branco, será inserido no fim.</p>
+            <input type="number" id="merge-page-input" min="1" placeholder="Ex: Adicionar ao fim">
+            <div class="modal-actions">
+                <button id="btn-merge-cancel">Cancelar</button>
+                <button id="btn-merge-confirm">Inserir</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="js/main.js"></script>
     <script type="module" src="js/sidebar.js"></script>

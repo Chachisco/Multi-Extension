@@ -26,11 +26,10 @@ async function syncStorageAfterEdit(action, p1, p2) {
 
             Object.keys(items).forEach(key => {
                 if (!key.startsWith(prefix)) {
-                    newStorage[key] = items[key]; // Mantém chaves não relacionadas
+                    newStorage[key] = items[key]; 
                     return;
                 }
 
-                // Extrai o número da página (ex: "meupdf_pg3_notes" -> 3)
                 const parts = key.substring(prefix.length).split('_');
                 const pageNum = parseInt(parts[0], 10);
                 const suffix = parts.slice(1).join('_');
@@ -38,7 +37,7 @@ async function syncStorageAfterEdit(action, p1, p2) {
                 let newPageNum = pageNum;
 
                 if (action === 'DELETE') {
-                    if (pageNum === p1) return; // Se for a página apagada, descarta os dados
+                    if (pageNum === p1) return;
                     if (pageNum > p1) newPageNum = pageNum - 1;
                 } 
                 else if (action === 'MOVE') {
@@ -46,6 +45,13 @@ async function syncStorageAfterEdit(action, p1, p2) {
                     if (pageNum === from) newPageNum = to;
                     else if (from < to && pageNum > from && pageNum <= to) newPageNum = pageNum - 1;
                     else if (from > to && pageNum >= to && pageNum < from) newPageNum = pageNum + 1;
+                }
+                else if (action === 'INSERT') {
+                    const insertAt = p1;
+                    const numAdded = p2;
+                    if (pageNum >= insertAt) {
+                        newPageNum = pageNum + numAdded;
+                    }
                 }
 
                 if (newPageNum !== pageNum) {
@@ -117,4 +123,45 @@ export async function reorderPDFPages(fromPage, toPage) {
 function reloadViewerWithNewBytes(bytes) {
     state.pdfBytes = bytes;
     loadPDF(bytes.slice(0), state.currentFilename);
+}
+
+export async function mergePDFs(newPdfBytes, insertAtPage) {
+    try {
+        const bytes = await getCurrentPdfBytes();
+        const mainPdf = await PDFDocument.load(bytes);
+        const importedPdf = await PDFDocument.load(newPdfBytes);
+
+        const numNewPages = importedPdf.getPageCount();
+        const totalMainPages = mainPdf.getPageCount();
+
+        // Determina onde inserir (0-based) e onde empurrar o Storage (1-based)
+        let insertIdx = totalMainPages; 
+        let shiftStartingFrom = totalMainPages + 1; 
+
+        if (insertAtPage && insertAtPage >= 1 && insertAtPage <= totalMainPages) {
+            insertIdx = insertAtPage - 1;
+            shiftStartingFrom = insertAtPage;
+        }
+
+        const copiedPages = await mainPdf.copyPages(importedPdf, importedPdf.getPageIndices());
+
+        for (let i = 0; i < copiedPages.length; i++) {
+            if (insertIdx === totalMainPages) {
+                mainPdf.addPage(copiedPages[i]);
+            } else {
+                mainPdf.insertPage(insertIdx + i, copiedPages[i]);
+            }
+        }
+
+        if (insertIdx < totalMainPages) {
+            await syncStorageAfterEdit('INSERT', shiftStartingFrom, numNewPages);
+        }
+
+        const modifiedBytes = await mainPdf.save();
+        reloadViewerWithNewBytes(modifiedBytes);
+        
+    } catch (e) {
+        console.error("Erro ao juntar PDFs:", e);
+        alert("Ocorreu um erro ao tentar juntar os documentos. Tenta novamente.");
+    }
 }

@@ -14,3 +14,32 @@
 #search-panel.hidden { display: none; }
 #search-input { width: 280px; background: #444; border: none; color: white; padding: 6px; border-radius: 3px; }
 #search-counter { color: #ccc; font-size: 12px; min-width: 44px; text-align: center; }
+
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.7); z-index: 4000;
+    display: flex; align-items: center; justify-content: center;
+}
+.modal-overlay.hidden { display: none; }
+.modal-content {
+    background: #252526; padding: 20px; border-radius: 8px; border: 1px solid #444;
+    color: #eee; width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    font-family: sans-serif;
+}
+.modal-content h3 { margin-top: 0; margin-bottom: 10px; color: #fff; font-size: 18px; }
+.modal-content p { font-size: 13px; color: #bbb; line-height: 1.4; margin-bottom: 15px; }
+.modal-content input {
+    width: 100%; padding: 10px; margin-bottom: 10px; background: #1e1e1e;
+    border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box;
+    font-size: 14px;
+}
+.modal-content input::placeholder { color: #888; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
+.modal-actions button {
+    padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; 
+    color: white; font-weight: bold; transition: 0.2s; font-size: 13px;
+}
+#btn-merge-cancel { background: #555; }
+#btn-merge-cancel:hover { background: #666; }
+#btn-merge-confirm { background: #0376db; }
+#btn-merge-confirm:hover { background: #0482f0; }
