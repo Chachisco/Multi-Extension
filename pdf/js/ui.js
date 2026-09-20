@@ -129,6 +129,7 @@ export function setupUI() {
             dlMenu.classList.add('hidden');
         });
         
+        document.getElementById('btn-dl-save').onclick = () => downloadNormal(false);
         document.getElementById('btn-dl-normal').onclick = downloadNormal;
         document.getElementById('btn-dl-burn').onclick = downloadBurnIn;
         document.getElementById('btn-dl-export').onclick = downloadWithNotes;
@@ -452,7 +453,7 @@ function getFocusLineHeight(ruler) {
     return Number.isFinite(value) ? value : 25;
 }
 
-function triggerExtensionDownload(blob, suggestedFilename, onFilenameChosen) {
+function triggerExtensionDownload(blob, suggestedFilename, useSaveAs, onFilenameChosen) {
     const reader = new FileReader();
     reader.readAsDataURL(blob);
     reader.onloadend = () => {
@@ -461,7 +462,7 @@ function triggerExtensionDownload(blob, suggestedFilename, onFilenameChosen) {
         chrome.downloads.download({
             url: base64data,
             filename: suggestedFilename,
-            saveAs: true
+            saveAs: useSaveAs // save or save as
         }, (downloadId) => {
             if (chrome.runtime.lastError || !downloadId) {
                 console.error("Download cancelado ou com erro.");
@@ -472,10 +473,10 @@ function triggerExtensionDownload(blob, suggestedFilename, onFilenameChosen) {
                 const listener = (downloadDelta) => {
                     if (downloadDelta.id === downloadId && downloadDelta.filename) {
                         chrome.downloads.onChanged.removeListener(listener);
-                        
+
                         const fullPath = downloadDelta.filename.current;
-                        const finalName = fullPath.split(/[\\/]/).pop(); 
-                        
+                        const finalName = fullPath.split(/[\\/]/).pop();
+
                         onFilenameChosen(finalName);
                     }
                 };
@@ -485,10 +486,10 @@ function triggerExtensionDownload(blob, suggestedFilename, onFilenameChosen) {
     };
 }
 
-export function downloadNormal() {
+export function downloadNormal(requestSaveAs) {
     if (!state.pdfBytes) return;
     const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
-    triggerExtensionDownload(blob, state.currentFilename || 'documento.pdf');
+    triggerExtensionDownload(blob, state.currentFilename || 'documento.pdf', requestSaveAs);
 }
 
 export async function downloadBurnIn() {
@@ -497,6 +498,9 @@ export async function downloadBurnIn() {
     try {
         const pdfDoc = await PDFDocument.load(state.pdfBytes);
         const pages = pdfDoc.getPages();
+        // Embebemos a fonte Helvetica para as notas ficarem direitinhas
+        const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+        
         const items = await new Promise(resolve => chrome.storage.local.get(null, resolve));
         const prefix = `${state.currentFilename}_pg`;
 
@@ -505,6 +509,7 @@ export async function downloadBurnIn() {
             const page = pages[i];
             const { width, height } = page.getSize();
 
+            // A) HIGHLIGHTS E SUBLINHADOS
             const annots = items[`${prefix}${pageNum}_annotations`] || [];
             annots.forEach(a => {
                 const realX = (a.x / 100) * width;
@@ -517,38 +522,88 @@ export async function downloadBurnIn() {
                 const b = parseInt(a.color.slice(5,7), 16) / 255;
 
                 if (a.mode === 'highlight') {
-                    page.drawRectangle({
-                        x: realX, y: realY, width: realW, height: realH,
-                        color: rgb(r, g, b), opacity: 0.4
-                    });
+                    page.drawRectangle({ x: realX, y: realY, width: realW, height: realH, color: rgb(r, g, b), opacity: 0.4 });
                 } else if (a.mode === 'underline') {
-                    page.drawLine({
-                        start: { x: realX, y: realY },
-                        end: { x: realX + realW, y: realY },
-                        color: rgb(r, g, b), thickness: a.size
-                    });
+                    page.drawLine({ start: { x: realX, y: realY }, end: { x: realX + realW, y: realY }, color: rgb(r, g, b), thickness: a.size });
                 }
             });
 
+            // B) DESENHOS LIVRES (Convertidos para Linhas SVG Vectoriais Perfeitas!)
+            const drawings = items[`${prefix}${pageNum}_drawings`] || [];
+            drawings.forEach(d => {
+                if (!d.path || d.path.length < 2) return;
+                
+                const r = parseInt(d.color.slice(1,3), 16) / 255;
+                const g = parseInt(d.color.slice(3,5), 16) / 255;
+                const b = parseInt(d.color.slice(5,7), 16) / 255;
+
+                // Transforma as percentagens X/Y num caminho M x y L x y 
+                let svgPath = '';
+                d.path.forEach((p, idx) => {
+                    const px = p.x * width;
+                    const py = height - (p.y * height);
+                    if (idx === 0) svgPath += `M ${px} ${py} `;
+                    else svgPath += `L ${px} ${py} `;
+                });
+
+                page.drawSvgPath({
+                    path: svgPath,
+                    borderColor: rgb(r, g, b),
+                    borderWidth: d.size,
+                    borderLineCap: 1, // Cap redondo
+                    borderLineJoin: 1 // Join redondo (suaviza as curvas)
+                });
+            });
+
+            // C) NOTAS ESTILO "POST-IT"
             const notes = items[`${prefix}${pageNum}_notes`] || [];
             notes.forEach(n => {
-                const realX = (n.x / 100) * width;
-                const realY = height - ((n.y / 100) * height) - 20;
+                const rx = (n.x / 100) * width;
+                const ry = height - ((n.y / 100) * height); // Posição de topo da nota
 
-                page.drawCircle({ x: realX + 10, y: realY + 10, size: 10, color: rgb(0.9, 0.7, 0) });
-                if (n.text) {
-                    page.drawText(n.text, {
-                        x: realX + 25, y: realY + 5, size: 12, color: rgb(0, 0, 0)
+                // Separa o texto em várias linhas (Word wrap simples a cada ~30 caracteres)
+                const rawText = n.text || "Nota Vazia";
+                const words = rawText.replace(/\n/g, ' \n ').split(' ');
+                let lines = [];
+                let currentLine = '';
+
+                words.forEach(word => {
+                    if (word === '\n') {
+                        lines.push(currentLine); currentLine = '';
+                    } else if ((currentLine + word).length > 35) {
+                        lines.push(currentLine); currentLine = word + ' ';
+                    } else {
+                        currentLine += word + ' ';
+                    }
+                });
+                if (currentLine) lines.push(currentLine);
+
+                // Desenha o quadrado amarelo por trás
+                const boxWidth = 180;
+                const boxHeight = Math.max(40, lines.length * 14 + 20);
+                
+                page.drawRectangle({
+                    x: rx, y: ry - boxHeight, 
+                    width: boxWidth, height: boxHeight,
+                    color: rgb(0.99, 0.96, 0.6),
+                    borderColor: rgb(0.9, 0.7, 0),
+                    borderWidth: 1
+                });
+
+                lines.forEach((lineText, idx) => {
+                    page.drawText(lineText.trim(), {
+                        x: rx + 10, y: ry - 20 - (idx * 14), 
+                        size: 10, font: font, color: rgb(0.1, 0.1, 0.1)
                     });
-                }
+                });
             });
         }
 
         const finalBytes = await pdfDoc.save();
         const blob = new Blob([finalBytes], { type: 'application/pdf' });
         
-        const suggName = (state.currentFilename ? state.currentFilename.replace('.pdf', '') : 'documento') + '_com_notas.pdf';
-        triggerExtensionDownload(blob, suggName);
+        const suggName = (state.currentFilename ? state.currentFilename.replace('.pdf', '') : 'documento') + '_anotado.pdf';
+        triggerExtensionDownload(blob, suggName, true); // Abre o Guardar Como
 
     } catch (e) {
         console.error("Erro ao gerar PDF com notas:", e);
@@ -562,16 +617,13 @@ export async function downloadWithNotes() {
     const suggName = (state.currentFilename ? state.currentFilename.replace('.pdf', '') : 'documento') + '_copia.pdf';
     const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
 
-    triggerExtensionDownload(blob, suggName, async (finalChosenName) => {
-        
-        // Vai buscar as notas à base de dados
+    triggerExtensionDownload(blob, suggName, true, async (finalChosenName) => {
         const items = await new Promise(resolve => chrome.storage.local.get(null, resolve));
         const oldPrefix = `${state.currentFilename}_pg`;
         const newPrefix = `${finalChosenName}_pg`;
         const newStorage = {};
         
         let hasData = false;
-
         Object.keys(items).forEach(key => {
             if (key.startsWith(oldPrefix)) {
                 const suffix = key.substring(oldPrefix.length); 
@@ -582,7 +634,7 @@ export async function downloadWithNotes() {
 
         if (hasData) {
             chrome.storage.local.set(newStorage, () => {
-                console.log(`Notas copiadas silenciosamente para o ficheiro associado: ${finalChosenName}`);
+                console.log(`Notas copiadas para: ${finalChosenName}`);
             });
         }
     });
