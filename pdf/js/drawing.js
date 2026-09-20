@@ -93,6 +93,58 @@ export function initDrawingLayer(wrapper, pageNum) {
     canvas.onmouseup = finishDrawing;
     canvas.onmouseleave = finishDrawing;
     canvas.classList.toggle('active', state.freehandActive);
+
+    // apagar quer anotações quer desenhos
+    wrapper.addEventListener('click', (event) => {
+        if (!state.eraserActive) return;
+        
+        if (event.target.classList.contains('annotation-mark')) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+
+        const drawings = state.drawings[pageNum] || [];
+        let removeIndex = -1;
+        let strokeToRemove = null;
+
+        for (let i = drawings.length - 1; i >= 0; i--) {
+            const stroke = drawings[i];
+            
+            const isHit = stroke.path.some(p => {
+                const px = p.x * rect.width;
+                const py = p.y * rect.height;
+                const dist = Math.sqrt(Math.pow(px - clickX, 2) + Math.pow(py - clickY, 2));
+                return dist < (stroke.size / 2 + 6);
+            });
+
+            if (isHit) {
+                removeIndex = i;
+                strokeToRemove = stroke;
+                break;
+            }
+        }
+
+        if (removeIndex !== -1) {
+            state.drawings[pageNum].splice(removeIndex, 1);
+            redrawCanvas(pageNum);
+            saveDrawingStorage(pageNum);
+            
+            record({
+                label: 'Apagar desenho',
+                undo: () => {
+                    state.drawings[pageNum].splice(removeIndex, 0, strokeToRemove);
+                    redrawCanvas(pageNum);
+                    saveDrawingStorage(pageNum);
+                },
+                redo: () => {
+                    state.drawings[pageNum].splice(removeIndex, 1);
+                    redrawCanvas(pageNum);
+                    saveDrawingStorage(pageNum);
+                }
+            });
+        }
+    });
 }
 
 function drawStoredPath(pageNum, path, color, size) {
