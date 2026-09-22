@@ -372,28 +372,6 @@ function handleKeydown(event) {
 
     const currentPage = getCurrentPageNumber();
 
-    if (event.key === 'ArrowRight' && !event.altKey) { // '→' + alt -> change index/pages sidebar to right side
-        event.preventDefault();
-        const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
-        const wrapper = document.getElementById(`page-wrapper-${next}`);
-        const viewport = document.getElementById('viewport');
-        if (wrapper && viewport) {
-            pageInput.value = next;
-            viewport.scrollTo({ top: wrapper.offsetTop - 42 });
-        }
-    }
-
-    if (event.key === 'ArrowLeft' && !event.altKey) { // '←' + alt -> change index/pages sidebar to left side 
-        event.preventDefault();
-        const prev = Math.max(1, currentPage - 1);
-        const wrapper = document.getElementById(`page-wrapper-${prev}`);
-        const viewport = document.getElementById('viewport');
-        if (wrapper && viewport) {
-            pageInput.value = prev;
-            viewport.scrollTo({ top: wrapper.offsetTop - 42, behavior: 'smooth' });
-        }
-    }
-
     if (event.key === 'ArrowDown') { // '↓' -> moves to the next page
         event.preventDefault();
         const ruler = document.getElementById('reading-ruler');
@@ -404,7 +382,7 @@ function handleKeydown(event) {
             const wrapper = document.getElementById(`page-wrapper-${next}`);
             if (wrapper) { 
                 pageInput.value = next; 
-                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 42, behavior: 'smooth' });
+                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 5, behavior: 'smooth' });
             }
         }
     }
@@ -419,7 +397,55 @@ function handleKeydown(event) {
             const wrapper = document.getElementById(`page-wrapper-${prev}`);
             if (wrapper) { 
                 pageInput.value = prev; 
-                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 42, behavior: 'smooth' });
+                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 5, behavior: 'smooth' });
+            }
+        }
+    }
+    if (event.key === 'ArrowRight' && !event.altKey){
+        event.preventDefault();
+        if (state.focusMode === 2) { 
+            const ruler = document.getElementById('reading-ruler');
+            const viewport = document.getElementById('viewport');
+            
+            if (ruler?.classList.contains('mode-line') && viewport) {
+                viewport.scrollBy({
+                    top: state.focusSize * 1.5, 
+                    behavior: 'auto'
+                });
+            }
+        }
+        else {
+            const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
+            const wrapper = document.getElementById(`page-wrapper-${next}`);
+            const viewport = document.getElementById('viewport');
+            
+            if (wrapper && viewport) {
+                pageInput.value = next;
+                viewport.scrollTo({ top: wrapper.offsetTop - 5, behavior: 'smooth' }); 
+            }
+        }
+    }
+    if (event.key === 'ArrowLeft' && !event.altKey){
+        event.preventDefault();
+
+        if (state.focusMode === 2) { 
+            const ruler = document.getElementById('reading-ruler');
+            const viewport = document.getElementById('viewport');
+            
+            if (ruler?.classList.contains('mode-line') && viewport) {
+                viewport.scrollBy({
+                    top: state.focusSize * -1.45,
+                    behavior: 'auto'
+                });
+            }
+        } else {
+            const prev = Math.max(1, currentPage - 1);
+            const wrapper = document.getElementById(`page-wrapper-${prev}`);
+            const viewport = document.getElementById('viewport');
+            
+            if (wrapper && viewport) {
+                pageInput.value = prev;
+                viewport.scrollTo({ top: wrapper.offsetTop - 5, behavior: 'smooth' });
             }
         }
     }
