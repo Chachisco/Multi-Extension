@@ -561,9 +561,10 @@ function triggerExtensionDownload(blob, suggestedFilename, useSaveAs) {
     });
 }
 
-export function downloadNormal(requestSaveAs = false) {
+export async function downloadNormal(requestSaveAs = false) {
     if (!state.pdfBytes) return;
-    const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
+    const data = await state.pdfDoc.saveDocument();
+    const blob = new Blob([data], { type: 'application/pdf' });
     triggerExtensionDownload(blob, state.currentFilename || 'documento.pdf', requestSaveAs);
 }
 
@@ -571,6 +572,7 @@ export async function downloadBurnIn() {
     if (!state.pdfBytes) return;
 
     try {
+        const data = await state.pdfDoc.saveDocument();
         const pdfDoc = await PDFDocument.load(state.pdfBytes);
         const pages = pdfDoc.getPages();
         
@@ -690,6 +692,7 @@ export async function downloadBurnIn() {
 export async function downloadWithNotes() {
     if (!state.pdfBytes) return;
 
+    const data = await state.pdfDoc.saveDocument();
     const suggName = (state.currentFilename ? state.currentFilename.replace('.pdf', '') : 'documento') + '_copia.pdf';
     const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
 

@@ -200,16 +200,16 @@ export async function renderPage(pageNum) {
 
         try {
             const annotationsData = await page.getAnnotations();
-            const linkAnnotations = annotationsData.filter(a => a.subtype === 'Link');
-            
+
             const annotationLayer = new pdfjsLib.AnnotationLayer({
                 viewport: pageViewport,
                 div: linksLayerDiv,
                 page,
-                linkService
+                linkService,
+                renderForms: true
             });
             await annotationLayer.render({
-                annotations: linkAnnotations,
+                annotations: annotationsData,
                 downloadManager: null
             });
         } catch (linkError) {

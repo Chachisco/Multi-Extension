@@ -1,15 +1,101 @@
-/* anotações (highlights) */
-.annotation-layer {
+/* =========================================
+   1. Texto base (camada do fundo)
+   ========================================= */
+.textLayer {
+    position: absolute;
+    text-align: initial;
+    inset: 0;
+    overflow: hidden;
+    line-height: 1;
+    z-index: 1;
+    transform-origin: 0 0;
+    --min-font-size: 1;
+    --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+    --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.textLayer .markedContent,
+.textLayer span.markedContent {
+    display: contents;
+    top: auto;
+    height: auto;
+}
+
+.textLayer span, .textLayer br {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+    user-select: text;
+    --scale-x: 1;
+    --rotate: 0deg;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.textLayer ::selection { background: rgba(3, 118, 219, 0.311); }
+
+/* =========================================
+   2. Formulários e links (Por cima do texto)
+   ========================================= */
+.pdf-links-layer {
     position: absolute;
     inset: 0;
     z-index: 2;
+    pointer-events: none;
+}
+
+.pdf-links-layer section {
+    position: absolute;
+    pointer-events: auto; 
+    cursor: pointer;
+}
+.pdf-links-layer section a {
+    display: block; width: 100%; height: 100%;
+}
+
+.pdf-links-layer .textWidgetAnnotation input,
+.pdf-links-layer .textWidgetAnnotation textarea,
+.pdf-links-layer .choiceWidgetAnnotation select,
+.pdf-links-layer .buttonWidgetAnnotation input {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 1px solid rgba(0, 50, 255, 0.2);
+    background-color: #f0f7ff !important;
+    color: #111;
+    box-sizing: border-box;
+    font-family: sans-serif;
+    font-size: inherit;
+}
+
+.pdf-links-layer .textWidgetAnnotation,
+.pdf-links-layer .choiceWidgetAnnotation {
+    background-color: transparent !important;
+    border: none !important;
+}
+
+.pdf-links-layer .textWidgetAnnotation input:focus,
+.pdf-links-layer .textWidgetAnnotation textarea:focus {
+    background-color: #e0f0ff;
+    outline: 2px solid #0376db;
+}
+
+/* =========================================
+   3. MARCAÇÕES AMARELAS (Highlights)
+   ========================================= */
+.annotation-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
     pointer-events: none;
 }
 .annotation-layer.eraser-active .annotation-mark {
     pointer-events: auto; cursor: crosshair;
 }
 .annotation-layer.eraser-active {
-    z-index: 4;
+    z-index: 5;
 }
 .annotation-mark {
     position: absolute;
@@ -27,6 +113,9 @@
     background-color: transparent !important;
 }
 
+/* =========================================
+   4. DESENHOS LIVRES (Caneta)
+   ========================================= */
 .drawing-canvas {
     position: absolute;
     inset: 0;
@@ -38,43 +127,9 @@
     cursor: crosshair;
 }
 
-.textLayer {
-    position: absolute;
-    text-align: initial;
-    inset: 0;
-    overflow: hidden;
-    line-height: 1;
-    z-index: 3;
-    transform-origin: 0 0;
-    --min-font-size: 1;
-    --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
-    --min-font-size-inv: calc(1 / var(--min-font-size));
-}
-
-.textLayer .markedContent {
-    display: contents;
-}
-.textLayer span.markedContent {
-    top: 0;
-    height: 0;
-}
-
-.textLayer span, .textLayer br {
-    color: transparent;
-    position: absolute;
-    white-space: pre;
-    cursor: text;
-    transform-origin: 0% 0%;
-    user-select: text;
-    --scale-x: 1;
-    --rotate: 0deg;
-    font-size: calc(var(--text-scale-factor) * var(--font-height));
-    transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
-}
-.textLayer ::selection { background: rgba(3, 118, 219, 0.311); }
-
-
-/* notes */
+/* =========================================
+   5. NOTAS ESTILO "POST-IT"
+   ========================================= */
 .notes-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
 
 .sticky-note {
@@ -86,7 +141,7 @@
     border-radius: 50%;
     box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
     z-index: 110;
-    cursor: grab; /* Mão aberta para arrastar */
+    cursor: grab;
     background-color: #f1c40f;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a6d3b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 17v5'/><path d='M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z'/></svg>");
     background-size: 10px;
@@ -137,15 +192,8 @@
 .sticky-note.pinned .pin-btn { background: rgba(0,0,0,0.15); color: #000; }
 .sticky-note.pinned .pin-btn svg { fill: currentColor; } 
 .pin-btn svg { fill: none; }
-/* a lock for notes to avoid mistakes */
-.sticky-note.locked .del-btn {
-    display: none; 
-}
-
-.sticky-note.locked textarea {
-    background: #fdf5e6;
-    border-color: #d68910;
-}
+.sticky-note.locked .del-btn { display: none; }
+.sticky-note.locked textarea { background: #fdf5e6; border-color: #d68910; }
 .lock-btn svg { width: 14px; height: 14px; }
 .sticky-note.locked .lock-btn { color: #d68910; }
 .sticky-note.pinned.locked .note-popup { border-color: #d68910; }
@@ -154,8 +202,8 @@
     border: none; background: #fff9c4; padding: 8px 10px 10px;
     font-family: sans-serif; font-size: 13px; outline: none; resize: both;
     color: #333;
-    min-width: 150px; min-height: 80px; /* Não deixa ficar microscópico */
-    width: 200px; height: 100px; /* Tamanho inicial padrão */
+    min-width: 150px; min-height: 80px;
+    width: 200px; height: 100px; 
     box-sizing: border-box;
 }
 
@@ -174,24 +222,9 @@
 }
 .note-marker:hover { transform: scaleY(2); opacity: 1; background: #fff; }
 
-/* links */
-.pdf-links-layer {
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    pointer-events: none;
-}
-
-.pdf-links-layer section {
-    position: absolute;
-    pointer-events: auto; 
-    cursor: pointer;
-}
-.pdf-links-layer section a {
-    display: block; width: 100%; height: 100%;
-}
-
-/* focus */
+/* =========================================
+   6. FOCO DE LEITURA (Reading Ruler)
+   ========================================= */
 #reading-ruler {
     position: fixed; left: 0; top: 0; width: 100vw; height: 100vh;
     pointer-events: none; z-index: 1999;
@@ -200,7 +233,6 @@
     --focus-size: 150px; 
 }
 
-/*tentar simular um decaimento exponencial*/
 #reading-ruler.mode-lantern {
     display: block;
     background: radial-gradient(

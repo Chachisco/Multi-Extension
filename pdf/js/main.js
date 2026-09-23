@@ -66,18 +66,17 @@ async function init() {
         const decodedUrl = decodeURIComponent(fileUrl);
         
         try {
-            // Vai buscar o PDF original ao URL
-            const res = await fetch(decodedUrl);
-            const buffer = await res.arrayBuffer();
-            
-            state.pdfBytes = buffer; // Guarda o ficheiro original na memória
-            
             const filename = decodedUrl.split('/').pop().split(/[?#]/)[0] || "documento.pdf";
-            await openSource(buffer.slice(0), filename);
-
+            await openSource(decodedUrl, filename);
+            
+            if (state.pdfDoc.annotationStorage.size > 0) {
+                state.pdfBytes = await state.pdfDoc.saveDocument();
+            } else {
+                state.pdfBytes = await state.pdfDoc.getData();
+            }
         } catch (error) {
             console.error("Erro ao carregar o PDF do URL:", error);
-            alert("Não foi possível carregar o PDF. Verifica a tua ligação ou tenta abrir manualmente.");
+            alert("Não foi possível abrir o PDF. Se for um ficheiro do teu computador, vai a chrome://extensions e certifica-te que a opção 'Permitir acesso aos URLs dos ficheiros' está ativada nesta extensão!");
             fileInput.click();
         }
     } else {

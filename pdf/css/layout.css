@@ -41,7 +41,7 @@ body.sidebar-open-right #viewport {
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
     display: block;
 }
-canvas { display: block; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; z-index: 1; }
+canvas { display: block; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; z-index: 2; }
 
 #lateral-slider {
     position: fixed;

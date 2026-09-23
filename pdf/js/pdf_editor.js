@@ -5,6 +5,9 @@ import { state } from './state.js';
 const { PDFDocument, degrees } = window.PDFLib || PDFLib;
 
 async function getCurrentPdfBytes() {
+    if (state.pdfDoc) {
+        return await state.pdfDoc.saveDocument();
+    }
     if (state.pdfBytes) return state.pdfBytes.slice(0);
     const fileUrl = new URLSearchParams(window.location.search).get('file');
     if (!fileUrl) throw new Error("Ficheiro não encontrado.");
