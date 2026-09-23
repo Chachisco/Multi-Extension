@@ -210,6 +210,39 @@
         </div>
     </div>
 
+    <div id="modal-preview" class="modal-overlay hidden">
+        <div class="modal-content large-modal">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="display: flex; flex-direction: column;">
+                    <h3 style="margin: 0;">Pré-visualização (Embutir Notas)</h3>
+                    <p style="margin: 4px 0 0 0;">Como incluir Notas?</p>
+                </div>
+                
+                <div style="display: flex; gap: 15px; background: #1e1e1e; padding: 8px 12px; border-radius: 6px; border: 1px solid #444;">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="radio" name="note-export-type" value="native" checked>
+                        <span style="font-size: 13px;"><strong>Nativo (Adobe)</strong> - Ícone clássico</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="radio" name="note-export-type" value="draw">
+                        <span style="font-size: 13px;"><strong>Desenhado</strong> - Caixa amarela</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="radio" name="note-export-type" value="none">
+                        <span style="font-size: 13px;"><strong>Nenhuma</strong> - Exportar PDF limpo</span>
+                    </label>
+                </div>
+            </div>
+
+            <iframe id="preview-iframe" src=""></iframe>
+            
+            <div class="modal-actions">
+                <button id="btn-preview-cancel">Cancelar</button>
+                <button id="btn-preview-confirm">Confirmar e Guardar</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="js/main.js"></script>
     <script type="module" src="js/sidebar.js"></script>
     <script type="module" src="../search/js/content.js"></script>

@@ -130,7 +130,7 @@
 /* =========================================
    5. NOTAS ESTILO "POST-IT"
    ========================================= */
-.notes-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
+.notes-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; }
 
 .sticky-note {
     position: absolute;
@@ -197,6 +197,8 @@
 .lock-btn svg { width: 14px; height: 14px; }
 .sticky-note.locked .lock-btn { color: #d68910; }
 .sticky-note.pinned.locked .note-popup { border-color: #d68910; }
+.eye-btn svg { width: 14px; height: 14px; }
+.sticky-note.ghost-note .eye-btn { color: #888; }
 
 .note-popup textarea {
     border: none; background: #fff9c4; padding: 8px 10px 10px;

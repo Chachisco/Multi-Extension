@@ -1,12 +1,15 @@
 import { state } from './state.js';
 import { record } from './history.js';
 
-export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLocked = false) {
+export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLocked = false, isExportable = true) {
     if (!overlay) return;
     const note = document.createElement('div');
     note.className = 'sticky-note';
+    
     if (isPinned) note.classList.add('pinned');
     if (isLocked) note.classList.add('locked');
+    if (!isExportable) note.classList.add('ghost-note');
+    
     note.style.left = `${x}%`;
     note.style.top = `${y}%`;
     note.tabIndex = 0;
@@ -15,12 +18,29 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         note.classList.add('active'); 
     }
 
-    // --- CONSTRUIR A INTERFACE DA NOTA ---
     const popup = document.createElement('div');
     popup.className = 'note-popup';
 
     const header = document.createElement('div');
     header.className = 'note-header';
+
+    // 0. Botão de Visibilidade
+    const eyeBtn = document.createElement('button');
+    eyeBtn.className = 'eye-btn';
+    eyeBtn.title = isExportable ? 'Nota Pública (Será exportada)' : 'Nota Secreta (Não será exportada)';
+    eyeBtn.innerHTML = isExportable 
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+    
+    eyeBtn.onclick = (e) => {
+        e.stopPropagation();
+        const isHidden = note.classList.toggle('ghost-note');
+        eyeBtn.title = isHidden ? 'Nota Secreta (Não será exportada)' : 'Nota Pública (Será exportada)';
+        eyeBtn.innerHTML = isHidden
+            ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+            : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+        saveNotesForPage(pageNum, overlay);
+    };
 
     // 1. Botão de Copiar
     const copyBtn = document.createElement('button');
@@ -40,8 +60,8 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
     lockBtn.className = 'lock-btn';
     lockBtn.title = 'Trancar nota (Proteger contra apagamento)';
     lockBtn.innerHTML = isLocked 
-        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>` // Cadeado Fechado
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`; // Cadeado Aberto
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>` 
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`; 
     
     lockBtn.onclick = (e) => {
         e.stopPropagation();
@@ -52,7 +72,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         saveNotesForPage(pageNum, overlay);
     };
 
-    // 3. Botão de Pin (Fixar)
+    // 3. Botão de Pin
     const pinBtn = document.createElement('button');
     pinBtn.className = 'pin-btn';
     pinBtn.title = 'Manter aberta';
@@ -64,7 +84,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         saveNotesForPage(pageNum, overlay);
     };
 
-    // 4. Botão de Lixo (Apagar)
+    // 4. Botão de Lixo
     const delBtn = document.createElement('button');
     delBtn.className = 'del-btn';
     delBtn.title = 'Apagar nota';
@@ -78,10 +98,12 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
     textarea.value = text;
     textarea.placeholder = 'Escreve a tua nota...';
 
+    header.appendChild(eyeBtn);
     header.appendChild(copyBtn);
     header.appendChild(lockBtn);
     header.appendChild(pinBtn);
     header.appendChild(delBtn);
+    
     popup.appendChild(header);
     popup.appendChild(textarea);
     note.appendChild(popup);
@@ -159,7 +181,8 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
             y: parseFloat(note.style.top),
             text: textarea.value,
             pinned: note.classList.contains('pinned'),
-            locked: note.classList.contains('locked')
+            locked: note.classList.contains('locked'),
+            exportable: !note.classList.contains('ghost-note')
         };
 
         note.remove();
@@ -167,7 +190,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         record({
             label: 'Apagar nota',
             undo: () => {
-                deletedNote = addNoteToUI(overlay, pageNum, noteData.x, noteData.y, noteData.text, noteData.pinned, noteData.locked);
+                deletedNote = addNoteToUI(overlay, pageNum, noteData.x, noteData.y, noteData.text, noteData.pinned, noteData.locked, noteData.exportable);
                 saveNotesForPage(pageNum, overlay);
             },
             redo: () => {
@@ -187,7 +210,8 @@ export function saveNotesForPage(pageNum, overlay) {
         y: parseFloat(note.style.top),
         text: note.querySelector('textarea').value,
         pinned: note.classList.contains('pinned'),
-        locked: note.classList.contains('locked')
+        locked: note.classList.contains('locked'),
+        exportable: !note.classList.contains('ghost-note')
     }));
     chrome.storage.local.set({ [`${state.currentFilename}_pg${pageNum}_notes`]: notes }, () => {
         updateNotesSidebar();
@@ -200,7 +224,8 @@ export function loadNotesForPage(pageNum) {
     overlay.innerHTML = '';
     const key = `${state.currentFilename}_pg${pageNum}_notes`;
     chrome.storage.local.get([key], result => {
-        (result[key] || []).forEach(note => addNoteToUI(overlay, pageNum, note.x, note.y, note.text, note.pinned, note.locked));
+        // LÊ O ESTADO DO OLHO AO CARREGAR O PDF!
+        (result[key] || []).forEach(note => addNoteToUI(overlay, pageNum, note.x, note.y, note.text, note.pinned, note.locked, note.exportable !== false));
         updateNotesSidebar();
     });
 }

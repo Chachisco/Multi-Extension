@@ -33,13 +33,49 @@
     border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box;
     font-size: 14px;
 }
-.modal-content input::placeholder { color: #888; }
+.modal-content input::placeholder { color: #4a4a4a; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
 .modal-actions button {
     padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; 
     color: white; font-weight: bold; transition: 0.2s; font-size: 13px;
 }
-#btn-merge-cancel { background: #555; }
-#btn-merge-cancel:hover { background: #666; }
-#btn-merge-confirm { background: #0376db; }
-#btn-merge-confirm:hover { background: #0482f0; }
+.modal-content.large-modal {
+    width: 90vw;
+    max-width: 1600px;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+    padding: 15px 25px;
+}
+
+#preview-iframe {
+    flex: 1;
+    width: 100%;
+    height: 100%; 
+    min-height: 0; 
+    border: none;
+    background: #525659;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+#btn-merge-cancel,
+#btn-preview-cancel { 
+    background: #555; 
+}
+
+#btn-merge-cancel:hover,
+#btn-preview-cancel:hover { 
+    background: #666; 
+}
+
+#btn-merge-confirm,
+#btn-preview-confirm { 
+    background: #0376db; 
+}
+
+#btn-merge-confirm:hover,
+#btn-preview-confirm:hover { 
+    background: #0482f0; 
+}
+

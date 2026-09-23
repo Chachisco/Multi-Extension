@@ -7,8 +7,7 @@ import { addNoteToUI } from './notes.js';
 import { undo, redo } from './history.js';
 import { setupDrawingTools } from './drawing.js';
 import * as PDFLib from '../lib/pdf_lib/pdf-lib.min.js';
-const { PDFDocument, rgb } = window.PDFLib || PDFLib;
-
+const { PDFDocument, rgb, PDFName, PDFString } = window.PDFLib || PDFLib;
 
 const header = document.getElementById('mini-header');
 const zoomInput = document.getElementById('zoom-percent');
@@ -178,7 +177,7 @@ export function setupUI() {
         });
         
         document.getElementById('btn-dl-save').onclick = () => downloadNormal(false);
-        document.getElementById('btn-dl-normal').onclick = downloadNormal;
+        document.getElementById('btn-dl-normal').onclick = () => downloadNormal(true);
         document.getElementById('btn-dl-burn').onclick = downloadBurnIn;
         document.getElementById('btn-dl-export').onclick = downloadWithNotes;
     }
@@ -242,6 +241,39 @@ export function setupUI() {
             readingRuler.style.setProperty('--focus-size', `${state.focusSize}px`);
         };
     });
+
+    const modalPreview = document.getElementById('modal-preview');
+    const btnPreviewCancel = document.getElementById('btn-preview-cancel');
+    const btnPreviewConfirm = document.getElementById('btn-preview-confirm');
+    const previewIframe = document.getElementById('preview-iframe');
+    const noteRadios = document.querySelectorAll('input[name="note-export-type"]');
+
+    if (noteRadios.length > 0) {
+        noteRadios.forEach(radio => {
+            radio.onchange = () => downloadBurnIn();
+        });
+    }
+
+    if (btnPreviewCancel) {
+        btnPreviewCancel.onclick = () => {
+            modalPreview.classList.add('hidden');
+            if (window.pendingPreviewUrl) URL.revokeObjectURL(window.pendingPreviewUrl);
+            window.pendingBurnInBlob = null;
+            window.pendingPreviewUrl = null;
+        };
+    }
+
+    if (btnPreviewConfirm) {
+        btnPreviewConfirm.onclick = async () => {
+            modalPreview.classList.add('hidden');
+            if (window.pendingBurnInBlob) {
+                await triggerExtensionDownload(window.pendingBurnInBlob, window.pendingBurnInName, true);
+            }
+            if (window.pendingPreviewUrl) URL.revokeObjectURL(window.pendingPreviewUrl);
+            window.pendingBurnInBlob = null;
+            window.pendingPreviewUrl = null;
+        };
+    }
 
     setupGlobalEvents();
 }
@@ -527,13 +559,17 @@ function getFocusLineHeight(ruler) {
 }
 
 function triggerExtensionDownload(blob, suggestedFilename, useSaveAs) {
-     return new Promise((resolve) => {
+    return new Promise((resolve) => {
+        let finalSuggestedName = suggestedFilename;
+        if (!finalSuggestedName.toLowerCase().endsWith('.pdf')) {
+            finalSuggestedName += '.pdf';
+        }
         const url = URL.createObjectURL(blob);
         
         chrome.downloads.download({
             url: url,
-            filename: suggestedFilename,
-            saveAs: useSaveAs 
+            filename: finalSuggestedName,
+            saveAs: useSaveAs
         }, (downloadId) => {
             if (chrome.runtime.lastError || !downloadId) {
                 console.error("Download cancelado/com erro:", chrome.runtime.lastError);
@@ -545,7 +581,7 @@ function triggerExtensionDownload(blob, suggestedFilename, useSaveAs) {
             const listener = (downloadDelta) => {
                 if (downloadDelta.id === downloadId && downloadDelta.filename) {
                     chrome.downloads.onChanged.removeListener(listener);
-                    URL.revokeObjectURL(url); // Limpa a RAM
+                    URL.revokeObjectURL(url); 
                     
                     const fullPath = downloadDelta.filename.current;
                     const finalName = fullPath.split(/[\\/]/).pop(); 
@@ -562,22 +598,33 @@ function triggerExtensionDownload(blob, suggestedFilename, useSaveAs) {
 }
 
 export async function downloadNormal(requestSaveAs = false) {
-    if (!state.pdfBytes) return;
-    const data = await state.pdfDoc.saveDocument();
+    if (!state.pdfDoc) return;
+    
+    let data;
+    if (state.pdfDoc.annotationStorage.size > 0) {
+        data = await state.pdfDoc.saveDocument();
+    } else {
+        data = await state.pdfDoc.getData();
+    }
+    
     const blob = new Blob([data], { type: 'application/pdf' });
-    triggerExtensionDownload(blob, state.currentFilename || 'documento.pdf', requestSaveAs);
+    const safeName = state.currentFilename ? state.currentFilename : 'documento.pdf';
+    triggerExtensionDownload(blob, safeName, requestSaveAs);
 }
-
 export async function downloadBurnIn() {
     if (!state.pdfBytes) return;
 
     try {
-        const data = await state.pdfDoc.saveDocument();
-        const pdfDoc = await PDFDocument.load(state.pdfBytes);
+        let baseData;
+        if (state.pdfDoc.annotationStorage.size > 0) {
+            baseData = await state.pdfDoc.saveDocument();
+        } else {
+            baseData = await state.pdfDoc.getData();
+        }
+
+        const pdfDoc = await PDFDocument.load(baseData);
         const pages = pdfDoc.getPages();
-        
         const helveticaFont = await pdfDoc.embedFont(window.PDFLib.StandardFonts.Helvetica);
-        
         const items = await new Promise(resolve => chrome.storage.local.get(null, resolve));
         const prefix = `${state.currentFilename}_pg`;
 
@@ -586,7 +633,7 @@ export async function downloadBurnIn() {
             const page = pages[i];
             const { width, height } = page.getSize();
 
-            // a) highlights e sublinhados
+            // a) highlights
             const annots = items[`${prefix}${pageNum}_annotations`] || [];
             annots.forEach(a => {
                 const realX = (a.x / 100) * width;
@@ -605,89 +652,118 @@ export async function downloadBurnIn() {
                 }
             });
 
-            // b) desenhos livres (corrigido!)
+            // b) desenhos livres
             const drawings = items[`${prefix}${pageNum}_drawings`] || [];
             drawings.forEach(d => {
                 if (!d.path || d.path.length < 2) return;
-                
                 const r = parseInt(d.color.slice(1,3), 16) / 255;
                 const g = parseInt(d.color.slice(3,5), 16) / 255;
                 const b = parseInt(d.color.slice(5,7), 16) / 255;
 
-                let svgPath = '';
-                d.path.forEach((p, idx) => {
-                    if (typeof p.x !== 'number' || typeof p.y !== 'number') return;
-                    
-                    const px = p.x * width;
-                    const py = height - (p.y * height);
-                    if (svgPath === '') svgPath += `M ${px} ${py} `;
-                    else svgPath += `L ${px} ${py} `;
-                });
+                const validPoints = d.path.filter(p => typeof p.x === 'number' && typeof p.y === 'number' && !isNaN(p.x) && !isNaN(p.y));
+                if (validPoints.length < 2) return;
 
-                if (svgPath !== '') {
-                    page.drawSvgPath(svgPath, {
-                        borderColor: rgb(r, g, b),
-                        borderWidth: Number(d.size) || 3,
-                        borderLineCap: 1, 
-                        borderLineJoin: 1
+                for (let j = 0; j < validPoints.length - 1; j++) {
+                    const p1 = validPoints[j];
+                    const p2 = validPoints[j + 1];
+                    
+                    page.drawLine({
+                        start: { x: p1.x * width, y: height - (p1.y * height) },
+                        end:   { x: p2.x * width, y: height - (p2.y * height) },
+                        color: rgb(r, g, b),
+                        thickness: Number(d.size) || 3
                     });
                 }
             });
 
             // c) notas estilo "post-it"
+            const exportType = document.querySelector('input[name="note-export-type"]:checked')?.value || 'native';
             const notes = items[`${prefix}${pageNum}_notes`] || [];
+            
             notes.forEach(n => {
+                if (n.exportable === false) return;
+
                 const rx = (n.x / 100) * width;
                 const ry = height - ((n.y / 100) * height); 
-
                 const rawText = n.text || "Nota Vazia";
-                const words = rawText.replace(/\n/g, ' \n ').split(' ');
-                let lines = [];
-                let currentLine = '';
 
-                words.forEach(word => {
-                    if (word === '\n') {
-                        lines.push(currentLine); currentLine = '';
-                    } else if ((currentLine + word).length > 35) {
-                        lines.push(currentLine); currentLine = word + ' ';
-                    } else {
-                        currentLine += word + ' ';
-                    }
-                });
-                if (currentLine) lines.push(currentLine);
-
-                const boxWidth = 180;
-                const boxHeight = Math.max(40, lines.length * 14 + 20); 
-                
-                page.drawRectangle({
-                    x: rx, y: ry - boxHeight, 
-                    width: boxWidth, height: boxHeight,
-                    color: rgb(0.99, 0.96, 0.6), 
-                    borderColor: rgb(0.9, 0.7, 0), 
-                    borderWidth: 1
-                });
-
-                lines.forEach((lineText, idx) => {
-                    page.drawText(lineText.trim(), {
-                        x: rx + 10, y: ry - 20 - (idx * 14), 
-                        size: 10, font: helveticaFont, color: rgb(0.1, 0.1, 0.1)
+                if (exportType === 'native') {
+                    const annotObj = pdfDoc.context.obj({
+                        Type: 'Annot',
+                        Subtype: 'Text',
+                        Rect: [rx, ry - 20, rx + 20, ry],
+                        Contents: PDFString.of(rawText),
+                        T: PDFString.of('UniPDF Pro'),
+                        C: [0.99, 0.96, 0.2],
+                        Name: PDFName.of('Comment'),
+                        Open: false
                     });
-                });
+
+                    // Regista o objeto e pendura-o na página atual
+                    const annotRef = pdfDoc.context.register(annotObj);
+                    let annotsArray = page.node.get(PDFName.of('Annots'));
+                    if (!annotsArray) {
+                        annotsArray = pdfDoc.context.obj([]);
+                        page.node.set(PDFName.of('Annots'), annotsArray);
+                    }
+                    annotsArray.push(annotRef);
+
+                } else if (exportType === 'draw') {
+                    // MODO DESENHADO: Queima uma caixa amarela visível
+                    const words = rawText.replace(/\n/g, ' \n ').split(' ');
+                    let lines = [];
+                    let currentLine = '';
+
+                    words.forEach(word => {
+                        if (word === '\n') { lines.push(currentLine); currentLine = ''; } 
+                        else if ((currentLine + word).length > 35) { lines.push(currentLine); currentLine = word + ' '; } 
+                        else { currentLine += word + ' '; }
+                    });
+                    if (currentLine) lines.push(currentLine);
+
+                    let maxTextWidth = 0;
+                    lines.forEach(l => {
+                        const textWidth = helveticaFont.widthOfTextAtSize(l.trim(), 10);
+                        if (textWidth > maxTextWidth) maxTextWidth = textWidth;
+                    });
+
+                    const boxWidth = Math.max(70, maxTextWidth + 20);
+                    const boxHeight = Math.max(30, lines.length * 14 + 16); 
+                    
+                    page.drawRectangle({
+                        x: rx, y: ry - 10 - boxHeight, 
+                        width: boxWidth, height: boxHeight,
+                        color: rgb(0.99, 0.96, 0.6), borderColor: rgb(0.9, 0.7, 0), 
+                        borderWidth: 1, opacity: 0.85, borderOpacity: 0.95
+                    });
+                    lines.forEach((lineText, idx) => {
+                        page.drawText(lineText.trim(), {
+                            x: rx + 10, y: ry - 25 - (idx * 14), 
+                            size: 10, font: helveticaFont, color: rgb(0.1, 0.1, 0.1)
+                        });
+                    });
+                }
             });
         }
 
         const finalBytes = await pdfDoc.save();
         const blob = new Blob([finalBytes], { type: 'application/pdf' });
-        
         const suggName = (state.currentFilename ? state.currentFilename.replace('.pdf', '') : 'documento') + '_anotado.pdf';
         
-        await triggerExtensionDownload(blob, suggName, true); 
+        const previewUrl = URL.createObjectURL(blob);
+        window.pendingBurnInBlob = blob;
+        window.pendingBurnInName = suggName;
+        window.pendingPreviewUrl = previewUrl;
+
+        document.getElementById('preview-iframe').src = previewUrl + '#toolbar=1&navpanes=1&view=FitH';
+        document.getElementById('modal-preview').classList.remove('hidden');
 
     } catch (e) {
         console.error("Erro ao gerar PDF com notas:", e);
         alert("Ocorreu um erro ao exportar as notas.");
     }
 }
+
 
 export async function downloadWithNotes() {
     if (!state.pdfBytes) return;
