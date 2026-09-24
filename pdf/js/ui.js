@@ -43,8 +43,12 @@ export function setHeaderMode(mode) {
 
 function setAnnotationActive(active) {
     state.annotationActive = active;
-    if (active) state.freehandActive = false;
-    if (active) state.eraserActive = false;
+    if (active){
+        state.freehandActive = false;
+        state.eraserActive = false;
+        document.body.classList.remove('cursor-eraser');
+        document.body.classList.add('cursor-pen');
+    }
     document.getElementById('annotation-options').classList.toggle('hidden', !active);
     header.classList.toggle('annotation-active', state.annotationActive);
     header.classList.toggle('eraser-active', state.eraserActive);
@@ -61,6 +65,8 @@ function setFreehandActive(active) {
     if (active) {
         state.annotationActive = false;
         state.eraserActive = false;
+        document.body.classList.remove('cursor-eraser');
+        document.body.classList.add('cursor-pen');
     }
     document.getElementById('annotation-options').classList.toggle('hidden', !active && !state.annotationActive);
     header.classList.toggle('annotation-active', state.annotationActive);
@@ -80,6 +86,8 @@ export function setupUI() {
         if (state.eraserActive) state.annotationActive = false;
         state.freehandActive = false;
         setAnnotationActive(state.annotationActive);
+        document.body.classList.remove('cursor-pen');
+        document.body.classList.add('cursor-eraser');
     };
     document.getElementById('btn-draw').onclick = () => setFreehandActive(!state.freehandActive);
     setupDrawingTools();
