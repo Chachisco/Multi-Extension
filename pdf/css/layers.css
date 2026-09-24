@@ -82,6 +82,68 @@
     outline: 2px solid #0376db;
 }
 
+.pdf-links-layer .textAnnotation {
+    position: absolute;
+    cursor: pointer;
+}
+.pdf-links-layer .textAnnotation img {
+    display: none !important;
+}
+.pdf-links-layer .textAnnotation::before {
+    content: '';
+    display: block;
+    width: 16px;
+    height: 16px;
+    background: #fdf5e6;
+    border: 2px solid #d68910;
+    border-radius: 2px 10px 10px 10px;
+    box-shadow: 1px 1px 4px rgba(0,0,0,0.4);
+    transition: transform 0.1s;
+}
+
+.pdf-links-layer .textAnnotation:hover::before {
+    transform: scale(1.1);
+}
+
+.pdf-links-layer .popupWrapper {
+    display: none;
+    position: absolute;
+    width: 220px;
+    z-index: 200;
+}
+
+.pdf-links-layer .popupWrapper:not([hidden]) {
+    display: block;
+}
+
+.pdf-links-layer .popupAnnotation {
+    background: #fff9c4;
+    border: 1px solid #d4ac0d;
+    border-radius: 6px;
+    padding: 10px;
+    box-shadow: 3px 3px 15px rgba(0,0,0,0.3);
+    font-family: sans-serif;
+    color: #333;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.pdf-links-layer .popupAnnotation h1 {
+    font-size: 11px;
+    font-weight: bold;
+    margin: 0 0 5px 0;
+    border-bottom: 1px solid #d4ac0d;
+    padding-bottom: 3px;
+    color: #b9770e;
+}
+
+.pdf-links-layer .popupAnnotation p {
+    font-size: 13px;
+    margin: 0;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
 /* =========================================
    3. MARCAÇÕES AMARELAS (Highlights)
    ========================================= */
