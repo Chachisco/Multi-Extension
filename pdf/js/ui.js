@@ -7,7 +7,7 @@ import { addNoteToUI } from './notes.js';
 import { undo, redo } from './history.js';
 import { setupDrawingTools } from './drawing.js';
 import * as PDFLib from '../lib/pdf_lib/pdf-lib.min.js';
-const { PDFDocument, rgb, PDFName, PDFString } = window.PDFLib || PDFLib;
+const { PDFDocument, rgb, PDFName, PDFString, PDFHexString } = window.PDFLib || PDFLib;
 
 const header = document.getElementById('mini-header');
 const zoomInput = document.getElementById('zoom-percent');
@@ -688,18 +688,28 @@ export async function downloadBurnIn() {
                 const rawText = n.text || "Nota Vazia";
 
                 if (exportType === 'native') {
+                    let hexString = 'FEFF';
+                    for (let i = 0; i < rawText.length; i++) {
+                        hexString += ('0000' + rawText.charCodeAt(i).toString(16)).slice(-4);
+                    }
+
+                    let authorString = 'FEFF';
+                    const authorName = "User PDF viewer";
+                    for (let i = 0; i < authorName.length; i++) {
+                        authorString += ('0000' + authorName.charCodeAt(i).toString(16)).slice(-4);
+                    }
+
                     const annotObj = pdfDoc.context.obj({
                         Type: 'Annot',
                         Subtype: 'Text',
                         Rect: [rx, ry - 20, rx + 20, ry],
-                        Contents: PDFString.of(rawText),
-                        T: PDFString.of('UniPDF Pro'),
+                        Contents: PDFHexString.of(hexString),
+                        T: PDFHexString.of(authorString),
                         C: [0.99, 0.96, 0.2],
                         Name: PDFName.of('Comment'),
                         Open: false
                     });
 
-                    // Regista o objeto e pendura-o na página atual
                     const annotRef = pdfDoc.context.register(annotObj);
                     let annotsArray = page.node.get(PDFName.of('Annots'));
                     if (!annotsArray) {
@@ -707,8 +717,8 @@ export async function downloadBurnIn() {
                         page.node.set(PDFName.of('Annots'), annotsArray);
                     }
                     annotsArray.push(annotRef);
-
-                } else if (exportType === 'draw') {
+                }
+                else if (exportType === 'draw') {
                     // MODO DESENHADO: Queima uma caixa amarela visível
                     const words = rawText.replace(/\n/g, ' \n ').split(' ');
                     let lines = [];

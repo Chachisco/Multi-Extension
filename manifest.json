@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PDF Viewer & Better Web Search",
-  "version": "2.0",
+  "version": "2.3",
   "description": "Leitor de PDF avançado e pesquisa web múltipla com Regex",
   "permissions": ["storage", "tabs", "activeTab", "downloads"],
   "host_permissions": ["file:///*", "http://*/*", "https://*/*"],
