@@ -20,6 +20,30 @@ const pageCache = new Map();
 
 const linkService = {
     getDestinationHash: dest => dest,
+    goToDestination: async dest => {
+        if (!state.pdfDoc) return;
+        
+        let destination = dest;
+        if (typeof destination === 'string') {
+            destination = await state.pdfDoc.getDestination(destination);
+        }
+        
+        if (Array.isArray(destination) && destination[0]) {
+            try {
+                const pageIndex = await state.pdfDoc.getPageIndex(destination[0]);
+                const targetPage = pageIndex + 1;
+                
+                const wrapper = document.getElementById(`page-wrapper-${targetPage}`);
+                if (wrapper) {
+                    const viewport = document.getElementById('viewport');
+                    document.getElementById('page-input').value = targetPage;
+                    viewport.scrollTo({ top: Math.max(0, wrapper.offsetTop - 42), behavior: 'smooth' }); 
+                }
+            } catch (e) {
+                console.warn("Erro ao navegar para o link interno:", e);
+            }
+        }
+    },
     navigateTo: dest => console.log('Navegar para:', dest),
     getAnchorUrl: url => url || '',
     setDocument: () => {},
