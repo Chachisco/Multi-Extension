@@ -243,6 +243,21 @@
         </div>
     </div>
 
+    <div id="reference-preview" class="hidden">
+        <div class="resizer-top"></div>
+        <div class="resizer-left"></div>
+        <div class="resizer-top-left"></div>
+        <div class="ref-header">
+            <strong>Referência <span id="ref-name" style="color:#0376db;"></span> (Pág. <span id="ref-page-number"></span>)</strong>
+            <button id="btn-close-ref" title="Fechar Preview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="ref-body">
+            <canvas id="ref-canvas"></canvas>
+        </div>
+    </div>
+
     <script type="module" src="js/main.js"></script>
     <script type="module" src="js/sidebar.js"></script>
     <script type="module" src="../search/js/content.js"></script>

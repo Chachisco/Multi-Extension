@@ -283,12 +283,83 @@ export function setupUI() {
         };
     }
 
+    const btnCloseRef = document.getElementById('btn-close-ref');
+    if (btnCloseRef) {
+        btnCloseRef.onclick = () => {
+            document.getElementById('reference-preview').classList.add('hidden');
+        };
+    }
+    const refPreview = document.getElementById('reference-preview');
+    const resizers = document.querySelectorAll('#reference-preview > [class^="resizer"]');
+    
+    let isResizing = false; 
+    let originalWidth = 0;
+    let originalHeight = 0;
+    let originalMouseX = 0;
+    let originalMouseY = 0;
+    let currentResizer = null;
+
+    if (resizers.length > 0 && refPreview) {
+        resizers.forEach(resizer => {
+            resizer.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                isResizing = true;
+                currentResizer = resizer.className;
+                originalWidth = refPreview.getBoundingClientRect().width;
+                originalHeight = refPreview.getBoundingClientRect().height;
+                originalMouseX = e.pageX;
+                originalMouseY = e.pageY;
+                refPreview.style.transition = 'none';
+            });
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            
+            if (currentResizer.includes('left')) {
+                const widthChange = originalMouseX - e.pageX;
+                const newWidth = originalWidth + widthChange;
+                if (newWidth > 300) refPreview.style.width = newWidth + 'px';
+            }
+            
+            if (currentResizer.includes('top')) {
+                const heightChange = originalMouseY - e.pageY;
+                const newHeight = originalHeight + heightChange;
+                if (newHeight > 400) refPreview.style.height = newHeight + 'px';
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                refPreview.style.transition = 'opacity 0.2s, transform 0.2s';
+            }
+        });
+    }
+
     setupGlobalEvents();
 }
 
 
 function setupGlobalEvents() {
     window.addEventListener('keydown', handleKeydown, { capture: true });
+
+    window.isShiftPressed = false;
+    window.addEventListener('keydown', e => { if (e.key === 'Shift') window.isShiftPressed = true; });
+    window.addEventListener('keyup', e => { if (e.key === 'Shift') window.isShiftPressed = false; });
+    window.addEventListener('blur', () => { window.isShiftPressed = false; });
+
+    document.addEventListener('mousedown', (e) => {
+        if (window.isShiftPressed) {
+            let target = e.target;
+            if (target.tagName !== 'A' && target.parentElement?.tagName === 'A') {
+                target = target.parentElement;
+            }
+            if (target.tagName === 'A') {
+                window.lastClickedLinkText = target.innerText || target.textContent || "";
+            }
+        }
+    });
 
     document.addEventListener('mouseup', () => { 
         if (state.annotationActive) applyAnnotation(); 

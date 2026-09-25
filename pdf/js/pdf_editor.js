@@ -20,7 +20,7 @@ async function getCurrentPdfBytes() {
 // ==========================================
 // 1. LÓGICA PARA SINCRONIZAR A BASE DE DADOS
 // ==========================================
-async function syncStorageAfterEdit(action, p1, p2) {
+async function syncStorageAfterEdit(action, p1, p2, keepNotes = false) {
     return new Promise(resolve => {
         chrome.storage.local.get(null, (items) => {
             const prefix = `${state.currentFilename}_pg`;
@@ -40,8 +40,12 @@ async function syncStorageAfterEdit(action, p1, p2) {
                 let newPageNum = pageNum;
 
                 if (action === 'DELETE') {
-                    if (pageNum === p1) return;
-                    if (pageNum > p1) newPageNum = pageNum - 1;
+                    if (pageNum === p1) {
+                        if (!keepNotes) return;// Destrói as notas
+                        // Se o utilizador quiser manter, atira as notas para a "nova" página que assume este número
+                    } else if (pageNum > p1) {
+                        newPageNum = pageNum - 1; // Puxa o resto do livro para cima
+                    }
                 } 
                 else if (action === 'MOVE') {
                     const from = p1; const to = p2;
@@ -73,13 +77,13 @@ async function syncStorageAfterEdit(action, p1, p2) {
 // ==========================================
 // 2. FUNÇÕES DE EDIÇÃO DO PDF
 // ==========================================
-export async function deleteSinglePage(pageNum) {
+export async function deleteSinglePage(pageNum, keepNotes) {
     try {
         const bytes = await getCurrentPdfBytes();
         const pdfDoc = await PDFDocument.load(bytes);
         pdfDoc.removePage(pageNum - 1);
         
-        await syncStorageAfterEdit('DELETE', pageNum, null);
+        await syncStorageAfterEdit('DELETE', pageNum, null, keepNotes);
         
         const modifiedBytes = await pdfDoc.save();
         reloadViewerWithNewBytes(modifiedBytes);

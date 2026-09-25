@@ -31,8 +31,13 @@ const linkService = {
         if (Array.isArray(destination) && destination[0]) {
             try {
                 const pageIndex = await state.pdfDoc.getPageIndex(destination[0]);
-                const targetPage = pageIndex + 1;
-                
+                const targetPage = pageIndex + 1; 
+
+                if (window.isShiftPressed) {
+                    showReferencePreview(targetPage, window.lastClickedLinkText);
+                    return;
+                }
+
                 const wrapper = document.getElementById(`page-wrapper-${targetPage}`);
                 if (wrapper) {
                     const viewport = document.getElementById('viewport');
@@ -74,7 +79,7 @@ export async function loadPDF(source, filename) {
     state.pendingAnnotationRemovals = new Map();
     lastStoredPage = null;
 
-    state.currentFilename = filename;
+    // state.currentFilename = filename;
     activateHistory(filename);
     document.title = filename || 'UniPDF Pro';
     const documentSource = typeof source === 'string' ? { url: source } : { data: source };
@@ -163,9 +168,23 @@ export async function loadPDF(source, filename) {
                 alert("Não podes apagar a última página do documento!");
                 return;
             }
-            if (confirm(`Tens a certeza que queres apagar a página ${pageNum}?`)) {
-                deleteSinglePage(pageNum);
-            }
+
+            const keyAnnotations = `${state.currentFilename}_pg${pageNum}_annotations`;
+            const keyNotes = `${state.currentFilename}_pg${pageNum}_notes`;
+            const keyDrawings = `${state.currentFilename}_pg${pageNum}_drawings`;
+
+            chrome.storage.local.get([keyAnnotations, keyNotes, keyDrawings], (result) => {
+
+                let keepNotes = false;
+
+                if (result[keyNotes]?.length > 0) {
+                    const ans = confirm(`A página ${pageNum} tem notas.\nQueres apagá-las também?\n(OK = Apagar tudo | Cancelar = Apagar a página e passar as notas para a página seguinte)`);
+                    keepNotes = !ans;
+                } else {
+                    if (!confirm(`Tens a certeza que queres apagar a página ${pageNum}?`)) return;
+                }
+                deleteSinglePage(pageNum, keepNotes);
+            });
         };
     });
 
@@ -349,4 +368,34 @@ export function rotatePages(delta) {
     });
     window.dispatchEvent(new CustomEvent('pdf-rotation-changed'));
     updateZoom(state.currentScale);
+}
+
+async function showReferencePreview(pageNum, refNameText = "") {
+    const previewEl = document.getElementById('reference-preview');
+    const canvas = document.getElementById('ref-canvas');
+    const ctx = canvas.getContext('2d');
+    const container = previewEl.querySelector('.ref-body');
+    
+    document.getElementById('ref-page-number').textContent = pageNum;
+    
+    const cleanRef = refNameText.trim();
+    document.getElementById('ref-name').textContent = cleanRef ? ` ${cleanRef}` : '';
+    
+    previewEl.classList.remove('hidden');
+
+    try {
+        const page = await state.pdfDoc.getPage(pageNum);
+        
+        const viewport = page.getViewport({ scale: 2.0, rotation: (page.rotate || 0) + state.pageRotation });
+        
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        
+        container.scrollTop = 0;
+        
+    } catch (err) {
+        console.error("Erro ao gerar preview de referência:", err);
+    }
 }
