@@ -51,7 +51,10 @@ fileInput.onchange = async () => {
     if (file) {
         const buffer = await file.arrayBuffer();
         state.pdfBytes = buffer;
-        state.currentFilename = file.name;
+
+        const uniqueId = `${file.name}_${file.size}`;
+        state.currentFilename = uniqueId; 
+
         await openSource(buffer.slice(0), file.name);
     }
 };
@@ -67,6 +70,11 @@ async function init() {
         const decodedUrl = decodeURIComponent(fileUrl);
         
         try {
+            const isLocalBlob = decodedUrl.startsWith('blob:');
+            const uniqueId = isLocalBlob ? 'documento_local_temp' : decodedUrl;
+            
+            state.currentFilename = uniqueId;
+
             const filename = decodedUrl.split('/').pop().split(/[?#]/)[0] || "documento.pdf";
             await openSource(decodedUrl, filename);
             
@@ -77,11 +85,21 @@ async function init() {
             }
         } catch (error) {
             console.error("Erro ao carregar o PDF do URL:", error);
-            alert("Não foi possível abrir o PDF. Se for um ficheiro do teu computador, vai a chrome://extensions e certifica-te que a opção 'Permitir acesso aos URLs dos ficheiros' está ativada nesta extensão!");
-            fileInput.click();
+            
+            const welcome = document.getElementById('welcome-screen');
+            welcome.classList.remove('hidden');
+            document.getElementById('btn-open-fallback').onclick = () => {
+                welcome.classList.add('hidden');
+                fileInput.click(); 
+            };
         }
     } else {
-        fileInput.click();
+        const welcome = document.getElementById('welcome-screen');
+        welcome.classList.remove('hidden');
+        document.getElementById('btn-open-fallback').onclick = () => {
+            welcome.classList.add('hidden');
+            fileInput.click();
+        };
     }
 }
 
