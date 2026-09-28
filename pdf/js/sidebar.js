@@ -552,7 +552,7 @@ function renderFiguresList() {
             row.innerHTML = `<strong style="color:${typeColor};">[${fig.type}] Pág. ${fig.pageNum}</strong><br><span style="color:#ddd;">${fig.fullText}...</span>`;
         }
         
-        row.title = "Clica para ir. Shift+Clica para Preview flutuante!";
+        row.title = "Clica para ir à localização. Shift+Click para Preview.";
         row.onclick = () => {
             if (window.isShiftPressed && typeof window.showReferencePreview === 'function') {
                 window.showReferencePreview(fig.pageNum, fig.matchText);

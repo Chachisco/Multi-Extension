@@ -168,7 +168,7 @@
 
 .figures-toolbar {
     background: #252526;
-    padding: 10px 0 10px 0;
+    padding: 5px 0 5px 0;
     border-bottom: 1px solid #333;
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;

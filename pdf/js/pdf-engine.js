@@ -34,8 +34,23 @@ const linkService = {
                 const pageIndex = await state.pdfDoc.getPageIndex(destination[0]);
                 const targetPage = pageIndex + 1; 
 
+                let destY = null;
+                const command = destination[1]?.name;
+                
+                if (command === 'XYZ' || command === 'FitR') {
+                    if (typeof destination[3] === 'number') destY = destination[3];
+                } else if (command === 'FitH' || command === 'FitV' || command === 'FitBH' || command === 'FitBV') {
+                    if (typeof destination[2] === 'number') destY = destination[2];
+                } else {
+                    for (let i = 2; i < destination.length; i++) {
+                        if (typeof destination[i] === 'number') {
+                            destY = destination[i]; break;
+                        }
+                    }
+                }
+
                 if (window.isShiftPressed) {
-                    showReferencePreview(targetPage, window.lastClickedLinkText);
+                    showReferencePreview(targetPage, window.lastClickedLinkText, destY);
                     return;
                 }
 
@@ -43,7 +58,20 @@ const linkService = {
                 if (wrapper) {
                     const viewport = document.getElementById('viewport');
                     document.getElementById('page-input').value = targetPage;
-                    viewport.scrollTo({ top: Math.max(0, wrapper.offsetTop - 42), behavior: 'smooth' }); 
+                    
+                    let targetScrollTop = wrapper.offsetTop - 42;
+                    
+                    if (destY !== null) {
+                        const page = await state.pdfDoc.getPage(targetPage);
+                        const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
+                        
+                        const pdfToHtmlY = vp.height - (destY * state.currentScale);
+                        
+                        const centerOffset = viewport.clientHeight / 2;
+                        targetScrollTop = wrapper.offsetTop + pdfToHtmlY - centerOffset;
+                    }
+
+                    viewport.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' }); 
                 }
             } catch (e) {
                 console.warn("Erro ao navegar para o link interno:", e);
@@ -377,16 +405,18 @@ export function rotatePages(delta) {
 window.currentPreviewPage = 1;
 window.currentPreviewScale = 1.5;
 window.currentPreviewName = "";
+window.currentPreviewY = null;
 
-window.showReferencePreview = async function(pageNum, refNameText = null) {
+window.showReferencePreview = async function(pageNum, refNameText = null, destY = undefined) {
     const previewEl = document.getElementById('reference-preview');
     const canvas = document.getElementById('ref-canvas');
-    const ctx = canvas.getContext('2d', { alpha: false }); // Otimiza a renderização
+    const ctx = canvas.getContext('2d', { alpha: false });
     const container = previewEl.querySelector('.ref-body');
     
     // Atualiza Estado
     window.currentPreviewPage = pageNum;
     if (refNameText !== null) window.currentPreviewName = refNameText;
+     if (destY !== undefined) window.currentPreviewY = destY;
     
     document.getElementById('ref-page-number').textContent = window.currentPreviewPage;
     document.getElementById('ref-zoom-display').textContent = `${Math.round(window.currentPreviewScale * 100)}%`;
@@ -412,7 +442,16 @@ window.showReferencePreview = async function(pageNum, refNameText = null) {
             transform: [dpr, 0, 0, dpr, 0, 0]
         }).promise;
         
-        if (refNameText !== null) container.scrollTop = 0; 
+        if (refNameText !== null) container.scrollTop = 0;
+
+        if (destY !== null) {
+            const pdfToHtmlY = viewport.height - (destY * window.currentPreviewScale);
+            const centerOffset = container.clientHeight / 2;
+            container.scrollTop = Math.max(0, pdfToHtmlY - centerOffset);
+        } else if (refNameText !== null) {
+            container.scrollTop = 0; 
+        }
+
         
     } catch (err) {
         console.error("Erro ao gerar preview de referência:", err);
