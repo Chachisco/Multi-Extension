@@ -87,9 +87,9 @@
     height: 60%;
     min-width: 300px;
     min-height: 400px;
-    max-width: 90%;
-    max-height: 95%;
-    /* resize: both; */
+    max-width: 98%;
+    max-height: 91.5%;
+    resize: none !important;
     background: #252526;
     border: 1px solid #444;
     border-radius: 8px;
@@ -101,7 +101,7 @@
     transition: opacity 0.2s, transform 0.2s;
     scrollbar-color: #555 #1e1e1e;
 }
-#reference-preview.hidden { 
+#reference-preview.hidden {
     opacity: 0;
     pointer-events: none;
     transform: translateY(20px);
@@ -120,22 +120,67 @@
     cursor: nw-resize; z-index: 20;
 }
 
+.ref-body {
+    flex: 1; 
+    overflow: auto; 
+    background: #525659; 
+    padding: 10px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+#ref-canvas {
+    background: white; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3); 
+    border-radius: 2px;
+    margin: 0 auto;
+    display: block;
+}
 
 .ref-header {
     display: flex; justify-content: space-between; align-items: center;
     background: #1e1e1e; padding: 10px 15px; border-bottom: 1px solid #333; color: white;
-    cursor: default;
+    cursor: default; gap: 10px;
 }
+.ref-header-group { display: flex; align-items: center; gap: 4px; }
 .ref-header button {
     background: transparent; border: none; color: #ccc; cursor: pointer; 
-    padding: 4px; border-radius: 4px; display: flex; transition: 0.15s;
+    padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: 0.15s;
 }
-.ref-header button:hover { background: #e51400; color: white; }
+.ref-header button:hover { background: #0376db; color: white; }
+.ref-header button.btn-close-hover:hover { background: #e51400; }
 .ref-header button svg { width: 16px; height: 16px; }
-.ref-body {
-    flex: 1; overflow: auto; background: #525659; padding: 10px;
+
+body.split-mode #viewport {
+    width: 50vw !important;
 }
-#ref-canvas {
-    background: white; width: 100%; height: auto; 
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3); border-radius: 2px;
+/* Se a barra esquerda estiver aberta, divide o espaço restante! */
+body.sidebar-open-left.split-mode #viewport {
+    width: calc(50vw - 125px) !important;
+}
+body.sidebar-open-right.split-mode #viewport {
+    width: calc(50vw - 125px) !important;
+}
+
+body.split-mode #reference-preview {
+    top: 40px !important;
+    left: 50vw !important;
+    width: 50vw !important;
+    height: calc(100vh - 40px) !important;
+    bottom: auto !important;
+    right: auto !important;
+    resize: none !important;
+    border-radius: 0 !important;
+    box-shadow: -2px 0 15px rgba(0,0,0,0.4) !important;
+    transform: none !important;
+    border: none !important;
+    border-left: 1px solid #444 !important;
+}
+
+/* Desliga as pegas de redimensionamento manual no Split Mode */
+body.split-mode .resizer-top,
+body.split-mode .resizer-left,
+body.split-mode .resizer-top-left {
+    display: none !important;
 }

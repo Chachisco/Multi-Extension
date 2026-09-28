@@ -41,10 +41,9 @@ async function syncStorageAfterEdit(action, p1, p2, keepNotes = false) {
 
                 if (action === 'DELETE') {
                     if (pageNum === p1) {
-                        if (!keepNotes) return;// Destrói as notas
-                        // Se o utilizador quiser manter, atira as notas para a "nova" página que assume este número
+                        if (!keepNotes) return;
                     } else if (pageNum > p1) {
-                        newPageNum = pageNum - 1; // Puxa o resto do livro para cima
+                        newPageNum = pageNum - 1;
                     }
                 } 
                 else if (action === 'MOVE') {

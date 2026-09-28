@@ -1,11 +1,12 @@
 import { state } from './state.js';
 import { saveState } from './storage.js';
-import { applyAnnotation } from './annotations.js';
-import { updateZoom, fitWidth, fitHeight, rotatePages } from './pdf-engine.js';
-import { mergePDFs } from './pdf_editor.js';
 import { addNoteToUI } from './notes.js';
 import { undo, redo } from './history.js';
+import { mergePDFs } from './pdf_editor.js';
 import { setupDrawingTools } from './drawing.js';
+import { applyAnnotation } from './annotations.js';
+import { setupTextBoxes, createTextBox, activeTextBox, saveTextBoxesForPage } from './textboxes.js';
+import { updateZoom, fitWidth, fitHeight, rotatePages } from './pdf-engine.js';
 import * as PDFLib from '../lib/pdf_lib/pdf-lib.min.js';
 const { PDFDocument, rgb, PDFName, PDFString, PDFHexString } = window.PDFLib || PDFLib;
 
@@ -50,6 +51,7 @@ function setAnnotationActive(active) {
         document.body.classList.add('cursor-pen');
     }
     document.getElementById('annotation-options').classList.toggle('hidden', !active);
+    document.getElementById('text-options').classList.add('hidden');
     header.classList.toggle('annotation-active', state.annotationActive);
     header.classList.toggle('eraser-active', state.eraserActive);
     header.classList.toggle('freehand-active', state.freehandActive);
@@ -69,6 +71,7 @@ function setFreehandActive(active) {
         document.body.classList.add('cursor-pen');
     }
     document.getElementById('annotation-options').classList.toggle('hidden', !active && !state.annotationActive);
+    document.getElementById('text-options').classList.add('hidden');
     header.classList.toggle('annotation-active', state.annotationActive);
     header.classList.toggle('eraser-active', state.eraserActive);
     header.classList.toggle('freehand-active', active);
@@ -78,19 +81,118 @@ function setFreehandActive(active) {
     document.querySelectorAll('.drawing-canvas').forEach(canvas => canvas.classList.toggle('active', active));
 }
 
+function setTextModeActive(active) {
+    state.textModeActive = active;
+    if (active) {
+        state.annotationActive = false; state.eraserActive = false; state.freehandActive = false;
+        document.body.classList.remove('cursor-eraser', 'cursor-pen');
+        document.body.classList.add('cursor-text');
+    } else {
+        document.body.classList.remove('cursor-text');
+    }
+    
+    document.getElementById('annotation-options').classList.add('hidden');
+    document.getElementById('text-options').classList.toggle('hidden', !active);
+    
+    document.getElementById('btn-text-box').classList.toggle('tool-active', active);
+    document.getElementById('btn-draw').classList.toggle('tool-active', false);
+    document.getElementById('btn-annotate').classList.toggle('tool-active', false);
+    document.getElementById('btn-eraser').classList.toggle('tool-active', false);
+}
+
 export function setupUI() {
     // Annotations
-    document.getElementById('btn-annotate').onclick = () => setAnnotationActive(!state.annotationActive);
+    document.getElementById('btn-annotate').onclick = () => {
+        setAnnotationActive(!state.annotationActive);
+        setTextModeActive(false);
+    };
     document.getElementById('btn-eraser').onclick = () => {
         state.eraserActive = !state.eraserActive;
         if (state.eraserActive) state.annotationActive = false;
         state.freehandActive = false;
+        setTextModeActive(false)
         setAnnotationActive(state.annotationActive);
         document.body.classList.remove('cursor-pen');
         document.body.classList.add('cursor-eraser');
     };
-    document.getElementById('btn-draw').onclick = () => setFreehandActive(!state.freehandActive);
+    document.getElementById('btn-draw').onclick = () => {
+        setFreehandActive(!state.freehandActive);
+        setTextModeActive(false);
+    };
     setupDrawingTools();
+
+    setupTextBoxes();
+    document.getElementById('btn-text-box').onclick = () => setTextModeActive(!state.textModeActive);
+    document.getElementById('btn-text-box').onclick = () => setTextModeActive(!state.textModeActive);
+    document.getElementById('opt-text-size').onchange = (e) => { state.currentTextSize = e.target.value; };
+
+    container.addEventListener('click', event => {
+        if (state.textModeActive && event.target.closest('.page-wrapper') && !event.target.closest('.free-text-box')) {
+            const wrapper = event.target.closest('.page-wrapper');
+            const rect = wrapper.getBoundingClientRect();
+            const x = ((event.clientX - rect.left) / rect.width) * 100;
+            const y = ((event.clientY - rect.top) / rect.height) * 100;
+            const overlay = wrapper.querySelector('.textboxes-overlay');
+            createTextBox(overlay, wrapper.dataset.pageNumber, x, y, '');
+            // setTextModeActive(!state.textModeActive);
+        }
+    });
+    
+    document.getElementById('opt-text-size').onchange = (e) => { 
+        state.currentTextSize = e.target.value; 
+        if (activeTextBox) {
+            activeTextBox.dataset.size = state.currentTextSize;
+            activeTextBox.style.setProperty('--saved-font-size', `${state.currentTextSize}px`);
+            const pageNum = activeTextBox.closest('.page-wrapper').dataset.pageNumber;
+            saveTextBoxesForPage(pageNum, activeTextBox.parentElement);
+        }
+    };
+
+    document.querySelectorAll('.opt-text-color').forEach(btn => {
+        btn.onmousedown = (e) => e.preventDefault(); // Impede o botão de roubar o Focus da Caixa!
+        btn.onclick = () => {
+            document.querySelectorAll('.opt-text-color').forEach(i => i.classList.remove('active'));
+            btn.classList.add('active');
+            state.currentTextColor = btn.dataset.val;
+            
+            if (activeTextBox) {
+                activeTextBox.dataset.color = state.currentTextColor;
+                activeTextBox.querySelector('textarea').style.color = state.currentTextColor;
+                const pageNum = activeTextBox.closest('.page-wrapper').dataset.pageNumber;
+                saveTextBoxesForPage(pageNum, activeTextBox.parentElement);
+            }
+        };
+    });
+    
+    document.querySelectorAll('.opt-text-align').forEach(btn => {
+        btn.onmousedown = (e) => e.preventDefault();
+        btn.onclick = () => {
+            document.querySelectorAll('.opt-text-align').forEach(i => i.classList.remove('active'));
+            btn.classList.add('active');
+            state.currentTextAlign = btn.dataset.val;
+            
+            if (activeTextBox) {
+                activeTextBox.dataset.align = state.currentTextAlign;
+                activeTextBox.querySelector('textarea').style.textAlign = state.currentTextAlign;
+                const pageNum = activeTextBox.closest('.page-wrapper').dataset.pageNumber;
+                saveTextBoxesForPage(pageNum, activeTextBox.parentElement);
+            }
+        };
+    });
+
+    document.getElementById('opt-text-widget').onmousedown = (e) => e.preventDefault();
+    document.getElementById('opt-text-widget').onclick = (e) => {
+        state.currentTextIsWidget = !state.currentTextIsWidget;
+        e.currentTarget.classList.toggle('active', state.currentTextIsWidget);
+        
+        if (activeTextBox) {
+            activeTextBox.dataset.isWidget = state.currentTextIsWidget;
+            activeTextBox.classList.toggle('is-widget', state.currentTextIsWidget);
+            activeTextBox.querySelector('textarea').placeholder = state.currentTextIsWidget ? "Widget Editável" : "Escreve...";
+            const pageNum = activeTextBox.closest('.page-wrapper').dataset.pageNumber;
+            saveTextBoxesForPage(pageNum, activeTextBox.parentElement);
+        }
+    };
     
     // Zoom e Modos Visuais
     document.getElementById('btn-header-mode').onclick = () => cycleHeaderMode();
@@ -250,17 +352,15 @@ export function setupUI() {
         };
     });
 
+    // ==========================================
+    // Preview de burn-in
+    // ==========================================
     const modalPreview = document.getElementById('modal-preview');
     const btnPreviewCancel = document.getElementById('btn-preview-cancel');
     const btnPreviewConfirm = document.getElementById('btn-preview-confirm');
-    const previewIframe = document.getElementById('preview-iframe');
     const noteRadios = document.querySelectorAll('input[name="note-export-type"]');
 
-    if (noteRadios.length > 0) {
-        noteRadios.forEach(radio => {
-            radio.onchange = () => downloadBurnIn();
-        });
-    }
+    if (noteRadios.length > 0) noteRadios.forEach(r => r.onchange = () => downloadBurnIn());
 
     if (btnPreviewCancel) {
         btnPreviewCancel.onclick = () => {
@@ -283,48 +383,68 @@ export function setupUI() {
         };
     }
 
-    const btnCloseRef = document.getElementById('btn-close-ref');
-    if (btnCloseRef) {
-        btnCloseRef.onclick = () => {
-            document.getElementById('reference-preview').classList.add('hidden');
-        };
-    }
+    // ==========================================
+    // Preview de referências
+    // ==========================================
     const refPreview = document.getElementById('reference-preview');
-    const resizers = document.querySelectorAll('#reference-preview > [class^="resizer"]');
     
+    // 1. Botões de Ação
+    document.getElementById('btn-close-ref')?.addEventListener('click', () => {
+        refPreview.classList.add('hidden');
+        document.body.classList.remove('split-mode'); // Desliga o lado-a-lado ao fechar
+    });
+
+    document.getElementById('btn-ref-prev')?.addEventListener('click', () => {
+        if (window.currentPreviewPage > 1) window.showReferencePreview(window.currentPreviewPage - 1);
+    });
+
+    document.getElementById('btn-ref-next')?.addEventListener('click', () => {
+        if (state.pdfDoc && window.currentPreviewPage < state.pdfDoc.numPages) {
+            window.showReferencePreview(window.currentPreviewPage + 1);
+        }
+    });
+
+    document.getElementById('btn-ref-zoom-in')?.addEventListener('click', () => {
+        window.currentPreviewScale = Math.min(5.0, window.currentPreviewScale + 0.25);
+        window.showReferencePreview(window.currentPreviewPage);
+    });
+
+    document.getElementById('btn-ref-zoom-out')?.addEventListener('click', () => {
+        window.currentPreviewScale = Math.max(0.5, window.currentPreviewScale - 0.25);
+        window.showReferencePreview(window.currentPreviewPage);
+    });
+
+    document.getElementById('btn-ref-split')?.addEventListener('click', () => {
+        document.body.classList.toggle('split-mode');
+    });
+
+    const resizers = document.querySelectorAll('#reference-preview > [class^="resizer"]');
     let isResizing = false; 
-    let originalWidth = 0;
-    let originalHeight = 0;
-    let originalMouseX = 0;
-    let originalMouseY = 0;
-    let currentResizer = null;
+    let origW = 0, origH = 0, origX = 0, origY = 0, currResizer = null;
 
     if (resizers.length > 0 && refPreview) {
         resizers.forEach(resizer => {
             resizer.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 isResizing = true;
-                currentResizer = resizer.className;
-                originalWidth = refPreview.getBoundingClientRect().width;
-                originalHeight = refPreview.getBoundingClientRect().height;
-                originalMouseX = e.pageX;
-                originalMouseY = e.pageY;
+                currResizer = resizer.className;
+                origW = refPreview.getBoundingClientRect().width;
+                origH = refPreview.getBoundingClientRect().height;
+                origX = e.pageX;
+                origY = e.pageY;
                 refPreview.style.transition = 'none';
             });
         });
 
         window.addEventListener('mousemove', (e) => {
-            if (!isResizing) return;
+            if (!isResizing || document.body.classList.contains('split-mode')) return; // Bloqueia resize manual se estiver lado-a-lado
             
-            if (currentResizer.includes('left')) {
-                const widthChange = originalMouseX - e.pageX;
-                const newWidth = originalWidth + widthChange;
+            if (currResizer.includes('left')) {
+                const newWidth = origW + (origX - e.pageX);
                 if (newWidth > 300) refPreview.style.width = newWidth + 'px';
             }
-            
-            if (currentResizer.includes('top')) {
-                const heightChange = originalMouseY - e.pageY;
-                const newHeight = originalHeight + heightChange;
+            if (currResizer.includes('top')) {
+                const newHeight = origH + (origY - e.pageY);
                 if (newHeight > 400) refPreview.style.height = newHeight + 'px';
             }
         });
@@ -338,7 +458,7 @@ export function setupUI() {
     }
 
     setupGlobalEvents();
-}
+} 
 
 
 function setupGlobalEvents() {
@@ -375,13 +495,13 @@ function setupGlobalEvents() {
     }, { passive: true });
 
     window.addEventListener('wheel', event => {
-        if (event.ctrlKey) { // ctrl + wheel -> increases/decreases zoom by 10%
+        if (event.ctrlKey) {
             event.preventDefault();
             queueWheelZoom(event.deltaY > 0 ? -0.1 : 0.1);
             return;
         }
 
-        if (event.shiftKey && state.focusMode > 0) { // shift + wheel -> increases focus size
+        if (event.shiftKey && state.focusMode > 0) {
             event.preventDefault();
             state.focusSize = event.deltaY > 0 ? Math.max(10, state.focusSize - 10) : Math.min(500, state.focusSize + 10);
             document.getElementById('reading-ruler').style.setProperty('--focus-size', `${state.focusSize}px`);
@@ -394,7 +514,7 @@ function setupGlobalEvents() {
             if (ruler?.classList.contains('mode-line') && viewport) {
                 event.preventDefault();
                 viewport.scrollBy({
-                    top: state.focusSize * Math.sign(event.deltaY) * 1.5,
+                    top: state.focusSize * Math.sign(event.deltaY) * 1.2,
                     // scroll do rato ligeiramente menor que o tamanho do foco para manter algum 
                     // texto do foco anterior e manter alguma continuidade (* 2.0 seria scroll igual ao foco)
                     behavior: 'auto'
@@ -520,7 +640,7 @@ function handleKeydown(event) {
             
             if (ruler?.classList.contains('mode-line') && viewport) {
                 viewport.scrollBy({
-                    top: state.focusSize * 1.5, 
+                    top: state.focusSize * 1.2, 
                     behavior: 'auto'
                 });
             }
@@ -687,7 +807,7 @@ export async function downloadNormal(requestSaveAs = false) {
     }
     
     const blob = new Blob([data], { type: 'application/pdf' });
-    const safeName = state.currentFilename ? state.currentFilename : 'documento.pdf';
+    const safeName = document.title !== 'UniPDF Pro' ? document.title : 'document.pdf';
     triggerExtensionDownload(blob, safeName, requestSaveAs);
 }
 export async function downloadBurnIn() {
@@ -798,7 +918,6 @@ export async function downloadBurnIn() {
                     annotsArray.push(annotRef);
                 }
                 else if (exportType === 'draw') {
-                    // MODO DESENHADO: Queima uma caixa amarela visível
                     const words = rawText.replace(/\n/g, ' \n ').split(' ');
                     let lines = [];
                     let currentLine = '';
@@ -833,17 +952,70 @@ export async function downloadBurnIn() {
                     });
                 }
             });
+
+            // d) caixas de texto
+            const textboxes = items[`${prefix}${pageNum}_textboxes`] || [];
+            
+            // Só pedimos acesso aos formulários globais do PDF se precisarmos deles!
+            let form = null;
+            if (textboxes.some(tb => tb.isWidget)) {
+                form = pdfDoc.getForm() || pdfDoc.addForm();
+            }
+
+            textboxes.forEach(tb => {
+                const rx = (tb.x / 100) * width;
+                const ry = height - ((tb.y / 100) * height); 
+                const realW = parseFloat(tb.width);
+                const realH = parseFloat(tb.height);
+                
+                const r = parseInt(tb.color.slice(1,3), 16) / 255;
+                const g = parseInt(tb.color.slice(3,5), 16) / 255;
+                const b = parseInt(tb.color.slice(5,7), 16) / 255;
+                
+                if (tb.isWidget) {
+                    const textField = form.createTextField(`widget_${Date.now()}_${Math.random()}`);
+                    textField.setText(tb.text || '');
+                    
+                    if (tb.align === 'center') textField.setAlignment(window.PDFLib.TextAlignment.Center);
+                    else if (tb.align === 'right') textField.setAlignment(window.PDFLib.TextAlignment.Right);
+
+                    textField.addToPage(page, {
+                        x: rx, y: ry - realH, width: realW, height: realH,
+                        textColor: rgb(r, g, b),
+                        borderColor: rgb(0,0,0),
+                        borderWidth: 1
+                    });
+                    
+                } else {
+                    if (!tb.text || tb.text.trim() === '') return;
+                    const lines = tb.text.split('\n');
+                    
+                    lines.forEach((lineText, idx) => {
+                        const fontSize = Number(tb.size) || 12;
+                        const textW = helveticaFont.widthOfTextAtSize(lineText, fontSize);
+                        
+                        let drawX = rx + 4; // margin-left
+                        if (tb.align === 'center') drawX = rx + (realW / 2) - (textW / 2);
+                        if (tb.align === 'right') drawX = rx + realW - textW - 4;
+
+                        page.drawText(lineText, {
+                            x: drawX, 
+                            y: ry - fontSize - 2 - (idx * (fontSize * 1.2)), 
+                            size: fontSize, font: helveticaFont, color: rgb(r, g, b)
+                        });
+                    });
+                }
+            });
         }
 
         const finalBytes = await pdfDoc.save();
         const blob = new Blob([finalBytes], { type: 'application/pdf' });
-        const suggName = (state.currentFilename ? state.currentFilename.replace('.pdf', '') : 'documento') + '_anotado.pdf';
-        
+        const safeName = document.title !== 'UniPDF Pro' ? document.title : 'document.pdf';
         const previewUrl = URL.createObjectURL(blob);
         window.pendingBurnInBlob = blob;
-        window.pendingBurnInName = suggName;
+        window.pendingBurnInName = safeName;
         window.pendingPreviewUrl = previewUrl;
-
+        
         document.getElementById('preview-iframe').src = previewUrl + '#toolbar=1&navpanes=1&view=FitH';
         document.getElementById('modal-preview').classList.remove('hidden');
 
@@ -858,10 +1030,10 @@ export async function downloadWithNotes() {
     if (!state.pdfBytes) return;
 
     const data = await state.pdfDoc.saveDocument();
-    const suggName = (state.currentFilename ? state.currentFilename.replace('.pdf', '') : 'documento') + '_copia.pdf';
+    const safeName = document.title !== 'UniPDF Pro' ? document.title : 'document.pdf';
     const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
 
-    const finalChosenName = await triggerExtensionDownload(blob, suggName, true);
+    const finalChosenName = await triggerExtensionDownload(blob, safeName, true);
     
     if (finalChosenName && finalChosenName !== state.currentFilename) {
         const items = await new Promise(resolve => chrome.storage.local.get(null, resolve));

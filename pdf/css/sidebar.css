@@ -148,3 +148,37 @@
 .thumbnail-actions button svg { width: 14px; height: 14px; }
 
 .thumbnail-actions button.btn-thumb-delete:hover { background: #e51400; }
+
+
+/* barra de ferramentas das figuras */
+#figures-toolbar-wrapper {
+    position: sticky;
+    top: -10px;
+    z-index: 50;
+}
+
+.figures-hover-zone {
+    position: absolute;
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 30px;
+    z-index: 50;
+}
+
+.figures-toolbar {
+    background: #252526;
+    padding: 10px 0 10px 0;
+    border-bottom: 1px solid #333;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    z-index: 55;
+}
+
+#figures-toolbar-wrapper.is-scrolled:not(.prevent-hide) .figures-toolbar {
+    transform: translateY(-100%);
+}
+
+#figures-toolbar-wrapper.is-scrolled:hover .figures-toolbar {
+    transform: translateY(0);
+}

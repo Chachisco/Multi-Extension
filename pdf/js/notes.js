@@ -6,17 +6,16 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
     const note = document.createElement('div');
     note.className = 'sticky-note';
     
-    if (isPinned) note.classList.add('pinned');
+    if (isPinned) {
+        note.classList.add('active');
+        note.classList.add('pinned');
+    }
     if (isLocked) note.classList.add('locked');
     if (!isExportable) note.classList.add('ghost-note');
     
     note.style.left = `${x}%`;
     note.style.top = `${y}%`;
     note.tabIndex = 0;
-    
-    if (isPinned) {
-        note.classList.add('active'); 
-    }
 
     const popup = document.createElement('div');
     popup.className = 'note-popup';

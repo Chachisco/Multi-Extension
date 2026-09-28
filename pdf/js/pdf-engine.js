@@ -7,6 +7,7 @@ import { activate as activateHistory } from './history.js';
 import { initDrawingLayer, resizeDrawingCanvas, loadDrawingsForPage } from './drawing.js';
 import { TextLayerBuilder } from './text-layer-builder.js';
 import { deleteSinglePage, rotateSinglePage } from './pdf_editor.js';
+import { loadTextBoxesForPage } from './textboxes.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf_js/build/pdf.worker.mjs';
 
@@ -79,7 +80,6 @@ export async function loadPDF(source, filename) {
     state.pendingAnnotationRemovals = new Map();
     lastStoredPage = null;
 
-    // state.currentFilename = filename;
     activateHistory(filename);
     document.title = filename || 'UniPDF Pro';
     const documentSource = typeof source === 'string' ? { url: source } : { data: source };
@@ -122,6 +122,9 @@ export async function loadPDF(source, filename) {
         wrapper.innerHTML = `
             <div class="page-actions-overlay">
                 <div class="page-actions-buttons">
+                    <button class="btn-page-preview" title="Abrir no modo Preview">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
                     <button class="btn-page-copy" title="Copiar texto desta página">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                     </button>
@@ -137,6 +140,7 @@ export async function loadPDF(source, filename) {
             <canvas class="drawing-canvas"></canvas>
             <div class="pdf-links-layer"></div>
             <div class="annotation-layer"></div>
+            <div class="textboxes-overlay"></div>
             <div class="textLayer"></div>
             <div class="notes-overlay"></div>
         `;
@@ -169,20 +173,19 @@ export async function loadPDF(source, filename) {
                 return;
             }
 
-            const keyAnnotations = `${state.currentFilename}_pg${pageNum}_annotations`;
+            // Confirmação primária de segurança
+            if (!confirm(`Tens a certeza que queres apagar a página ${pageNum}?`)) return;
+
+            // Só verifica as Notas (Post-its)
             const keyNotes = `${state.currentFilename}_pg${pageNum}_notes`;
-            const keyDrawings = `${state.currentFilename}_pg${pageNum}_drawings`;
-
-            chrome.storage.local.get([keyAnnotations, keyNotes, keyDrawings], (result) => {
-
+            chrome.storage.local.get([keyNotes], (result) => {
                 let keepNotes = false;
 
-                if (result[keyNotes]?.length > 0) {
-                    const ans = confirm(`A página ${pageNum} tem notas.\nQueres apagá-las também?\n(OK = Apagar tudo | Cancelar = Apagar a página e passar as notas para a página seguinte)`);
-                    keepNotes = !ans;
-                } else {
-                    if (!confirm(`Tens a certeza que queres apagar a página ${pageNum}?`)) return;
+                if (result[keyNotes] && result[keyNotes].length > 0) {
+                    const ans = confirm(`A página ${pageNum} tem Notas (Post-its).\nQueres apagar as notas (OK) ou guardá-las e passá-las para a página seguinte (Cancelar)?`);
+                    keepNotes = !ans; // Se cancelou a destruição, mantém!
                 }
+
                 deleteSinglePage(pageNum, keepNotes);
             });
         };
@@ -198,6 +201,7 @@ export async function renderPage(pageNum) {
     if (wrapper.dataset.rendered === 'true' && Number(wrapper.dataset.scale) === state.currentScale) {
         loadNotesForPage(pageNum);
         loadAnnotationsForPage(pageNum);
+        loadTextBoxesForPage(pageNum)
         return;
     }
     state.renderingStates[pageNum] = true;
@@ -370,30 +374,45 @@ export function rotatePages(delta) {
     updateZoom(state.currentScale);
 }
 
-async function showReferencePreview(pageNum, refNameText = "") {
+window.currentPreviewPage = 1;
+window.currentPreviewScale = 1.5;
+window.currentPreviewName = "";
+
+window.showReferencePreview = async function(pageNum, refNameText = null) {
     const previewEl = document.getElementById('reference-preview');
     const canvas = document.getElementById('ref-canvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false }); // Otimiza a renderização
     const container = previewEl.querySelector('.ref-body');
     
-    document.getElementById('ref-page-number').textContent = pageNum;
+    // Atualiza Estado
+    window.currentPreviewPage = pageNum;
+    if (refNameText !== null) window.currentPreviewName = refNameText;
     
-    const cleanRef = refNameText.trim();
-    document.getElementById('ref-name').textContent = cleanRef ? ` ${cleanRef}` : '';
+    document.getElementById('ref-page-number').textContent = window.currentPreviewPage;
+    document.getElementById('ref-zoom-display').textContent = `${Math.round(window.currentPreviewScale * 100)}%`;
+    
+    const cleanRef = window.currentPreviewName.trim();
+    // document.getElementById('ref-name').textContent = cleanRef ? ` ${cleanRef}` : '';
     
     previewEl.classList.remove('hidden');
 
     try {
-        const page = await state.pdfDoc.getPage(pageNum);
+        const page = await state.pdfDoc.getPage(window.currentPreviewPage);
+        const viewport = page.getViewport({ scale: window.currentPreviewScale, rotation: (page.rotate || 0) + state.pageRotation });
         
-        const viewport = page.getViewport({ scale: 2.0, rotation: (page.rotate || 0) + state.pageRotation });
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
         
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        await page.render({ 
+            canvasContext: ctx, 
+            viewport: viewport,
+            transform: [dpr, 0, 0, dpr, 0, 0]
+        }).promise;
         
-        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-        
-        container.scrollTop = 0;
+        if (refNameText !== null) container.scrollTop = 0; 
         
     } catch (err) {
         console.error("Erro ao gerar preview de referência:", err);
