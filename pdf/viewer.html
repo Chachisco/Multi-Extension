@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/layers.css">
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="../search/css/content.css">
     <script src="lib/pdf_lib/pdf-lib.min.js"></script>
 </head>
 <body>
@@ -64,20 +65,58 @@
         </div>
     </div>
     <div id="reading-ruler"></div>
-    <div id="search-panel" class="hidden">
-        <input type="text" id="search-input" placeholder="Pesquisar (usa vírgula para várias palavras)...">
-        <span id="search-counter"></span>
+
+    <div id="vertical-toolbar">
+        <button id="btn-text-box" title="Escrever Texto / Formulários">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+        </button>
+        <button id="btn-draw" title="Desenho livre">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 4.5-1L19 8.5a2.12 2.12 0 0 0-3-3L5.5 16 4 20Z"/><path d="m14.5 6.5 3 3"/></svg>
+        </button>
+        <button id="btn-annotate" title="Ativar marcação (Sublinhar/Pintar)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+        </button>
         
-        <button id="btn-search-prev" title="Anterior">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+        <div class="v-divider"></div>
+        
+        <button id="btn-eraser" title="Ativar borracha">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21 10.5-10.5a2.12 2.12 0 0 0 0-3L14.5 5.5a2.12 2.12 0 0 0-3 0L4 13a2.12 2.12 0 0 0 0 3L7 19h10"/><path d="m16 21 3-3"/></svg>
         </button>
-        <button id="btn-search-next" title="Seguinte (Enter)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <span class="divider">|</span>
-        <button id="btn-search-close" title="Fechar (Esc)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
+
+        <!-- SECÇÃO VERTICAL: OPÇÕES DE TEXTO -->
+        <div id="text-options" class="v-options-group hidden">
+            <div class="v-divider"></div>
+            <input type="number" id="opt-text-size" value="12" min="6" max="72" title="Tamanho da Fonte">
+            <button class="opt-text-color active" data-val="#000000" style="background: #000; border: 1px solid #777;" title="Preto"></button>
+            <button class="opt-text-color" data-val="#0376db" style="background: #0376db;" title="Azul"></button>
+            <button class="opt-text-color" data-val="#e51400" style="background: #e51400;" title="Vermelho"></button>
+            <div class="v-divider"></div>
+            <button class="opt-text-align active" data-val="left" title="Alinhar à Esquerda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+            <button class="opt-text-align" data-val="center" title="Centro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+            <button class="opt-text-align" data-val="right" title="Alinhar à Direita"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+            <div class="v-divider"></div>
+            <button id="opt-text-widget" title="Modo Formulário (Criar Campo Editável)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></button>
+        </div>
+
+        <!-- SECÇÃO VERTICAL: OPÇÕES DE MARCAÇÃO E DESENHO -->
+        <div id="annotation-options" class="v-options-group hidden">
+            <div class="v-divider"></div>
+            <button class="opt-btn opt-mode active" data-val="highlight" title="Pintar (Fundo)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
+            <button class="opt-btn opt-mode" data-val="underline" title="Sublinhar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" x2="20" y1="20" y2="20"/></svg></button>
+            
+            <div class="v-divider opt-mode-divider"></div>
+            
+            <button class="opt-color active" data-val="#ffeb3b" style="background: #ffeb3b;" title="Amarelo"></button>
+            <button class="opt-color" data-val="#8be28b" style="background: #8be28b;" title="Verde"></button>
+            <button class="opt-color" data-val="#80d8ff" style="background: #80d8ff;" title="Azul"></button>
+            <button class="opt-color" data-val="#ff9f9f" style="background: #ff9f9f;" title="Vermelho"></button>
+            
+            <div class="v-divider"></div>
+            
+            <button class="opt-btn opt-size" data-val="2" title="Fina"><svg viewBox="0 0 24 24" stroke="currentColor"><line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/></svg></button>
+            <button class="opt-btn opt-size active" data-val="4" title="Média"><svg viewBox="0 0 24 24" stroke="currentColor"><line x1="4" y1="12" x2="20" y2="12" stroke-width="4"/></svg></button>
+            <button class="opt-btn opt-size" data-val="7" title="Grossa"><svg viewBox="0 0 24 24" stroke="currentColor"><line x1="4" y1="12" x2="20" y2="12" stroke-width="7"/></svg></button>
+        </div>
     </div>
 
     <div id="mini-header" class="mode-ghost">
@@ -134,75 +173,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             </button>
         </div>
-        <div id="annotation-toolbar">
-            
-            <div id="annotation-options" class="hidden">
-                <button class="opt-btn opt-mode active" data-val="highlight" title="Pintar (Fundo)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
-                </button>
-                <button class="opt-btn opt-mode" data-val="underline" title="Sublinhar">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" x2="20" y1="20" y2="20"/></svg>
-                </button>
-                
-                <span class="divider">|</span>
-                
-                <!-- Cores -->
-                <button class="opt-color active" data-val="#ffeb3b" style="background: #ffeb3b;" title="Amarelo"></button>
-                <button class="opt-color" data-val="#8be28b" style="background: #8be28b;" title="Verde"></button>
-                <button class="opt-color" data-val="#80d8ff" style="background: #80d8ff;" title="Azul"></button>
-                <button class="opt-color" data-val="#ff9f9f" style="background: #ff9f9f;" title="Vermelho"></button>
 
-                <span class="divider">|</span>
-                
-                <!-- Espessura -->
-                <button class="opt-btn opt-size" data-val="2" title="Fina">
-                    <svg viewBox="0 0 24 24" stroke="currentColor"><line x1="4" y1="12" x2="20" y2="12" stroke-width="2"/></svg>
-                </button>
-                <button class="opt-btn opt-size active" data-val="4" title="Média">
-                    <svg viewBox="0 0 24 24" stroke="currentColor"><line x1="4" y1="12" x2="20" y2="12" stroke-width="4"/></svg>
-                </button>
-                <button class="opt-btn opt-size" data-val="7" title="Grossa">
-                    <svg viewBox="0 0 24 24" stroke="currentColor"><line x1="4" y1="12" x2="20" y2="12" stroke-width="7"/></svg>
-                </button>
-            </div>
-            <div id="text-options" class="hidden">
-                <input type="number" id="opt-text-size" value="12" min="6" max="72" title="Tamanho da Fonte">
-                <span class="divider">|</span>
-                <button class="opt-text-color active" data-val="#000000" style="background: #000; border: 1px solid #777;" title="Preto"></button>
-                <button class="opt-text-color" data-val="#0376db" style="background: #0376db;" title="Azul"></button>
-                <button class="opt-text-color" data-val="#e51400" style="background: #e51400;" title="Vermelho"></button>
-                <span class="divider">|</span>
-                <button class="opt-text-align active" data-val="left" title="Alinhar à Esquerda">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-                </button>
-                <button class="opt-text-align" data-val="center" title="Centro">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-                </button>
-                <button class="opt-text-align" data-val="right" title="Alinhar à Direita">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-                </button>
-                <span class="divider">|</span>
-                <button id="opt-text-widget" title="Modo Formulário (Criar Campo Editável)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-                </button>
-            </div>
-
-            <button id="btn-text-box" title="Escrever Texto (Preencher PDFs)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>
-                </svg>
-            </button>
-            <button id="btn-draw" title="Desenho livre">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 4.5-1L19 8.5a2.12 2.12 0 0 0-3-3L5.5 16 4 20Z"/><path d="m14.5 6.5 3 3"/></svg>
-            </button>
-            <button id="btn-annotate" title="Ativar marcação">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
-            </button>
-            <button id="btn-eraser" title="Ativar borracha">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21 10.5-10.5a2.12 2.12 0 0 0 0-3L14.5 5.5a2.12 2.12 0 0 0-3 0L4 13a2.12 2.12 0 0 0 0 3L7 19h10"/><path d="m16 21 3-3"/></svg>
-            </button>
-        </div>
-        
         <div class="zoom-controls">
             <span class="divider">|</span>
             <button id="btn-header-mode" title="Mudar modo (H)"></button>

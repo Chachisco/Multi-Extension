@@ -150,9 +150,9 @@
 }
 
 /* CORES HIGHLIGHT API */
-::highlight(sws-color-0) { background-color: rgba(255, 235, 59, 0.4); color: black; }
-::highlight(sws-color-1) { background-color: rgba(139, 226, 139, 0.4); color: black; }
-::highlight(sws-color-2) { background-color: rgba(128, 216, 255, 0.4); color: black; }
-::highlight(sws-color-3) { background-color: rgba(255, 159, 159, 0.4); color: black; }
-::highlight(sws-color-4) { background-color: rgba(224, 64, 251, 0.4); color: white; }
-::highlight(sws-active) { background-color: #ff9800; color: white; }
+::highlight(sws-color-0) { background-color: rgba(255, 235, 59, 0.4); }
+::highlight(sws-color-1) { background-color: rgba(139, 226, 139, 0.4); }
+::highlight(sws-color-2) { background-color: rgba(128, 216, 255, 0.4); }
+::highlight(sws-color-3) { background-color: rgba(255, 159, 159, 0.4); }
+::highlight(sws-color-4) { background-color: rgba(224, 64, 251, 0.4); }
+::highlight(sws-active) { background-color: rgba(255, 152, 0, 0.7); }

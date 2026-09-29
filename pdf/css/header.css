@@ -115,60 +115,17 @@
     opacity: 0; pointer-events: none;
 }
 
-/* =========================================
-   5. A CÁPSULA FLUTUANTE (Para ferramentas ativas)
-   ========================================= */
-#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).annotation-active #annotation-toolbar,
-#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).eraser-active #annotation-toolbar,
-#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).freehand-active #annotation-toolbar {
-    background: #1e1e1e; padding: 4px 6px; border-radius: 8px;
-    border: 1px solid #444; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.6);
-}
 
-#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).annotation-active #btn-eraser,
-#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).eraser-active #btn-annotate,
-#mini-header:is(.mode-ghost, .mode-minimal):not(:hover).eraser-active #annotation-options {
-    display: none;
-}
-
-/* =========================================
-   6. DESIGN DOS BOTÕES (Toolbar)
-   ========================================= */
-#annotation-toolbar { display: flex; align-items: center; gap: 4px; margin-left: auto;}
-
-#annotation-toolbar button, .zoom-controls button, #search-panel button {
+.zoom-controls button, #search-panel button {
     border: none; background: transparent; color: #ccc; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     border-radius: 4px; transition: background 0.2s, color 0.2s;
 }
 
-#annotation-toolbar button { height: 32px; width: 32px; border: 1px solid transparent; }
-#annotation-toolbar button:hover, .zoom-controls button:hover, #search-panel button:hover { background: #333; color: white; }
-#annotation-toolbar button svg, .zoom-controls button svg, #search-panel button svg { width: 16px; height: 16px; }
+.zoom-controls button:hover, #search-panel button:hover { background: #333; color: white; }
+.zoom-controls button svg, #search-panel button svg { width: 16px; height: 16px; }
 
-#btn-annotate.tool-active, #btn-eraser.tool-active, #btn-draw.tool-active {
-    color: #ffd740; border-color: #ffd740; background: rgba(255, 215, 64, 0.1); 
-}
 
-#annotation-options {
-    display: flex; align-items: center; gap: 4px; background: #222;
-    padding: 4px 8px; border-radius: 6px; border: 1px solid #444;
-}
-
-#annotation-options.hidden { display: none; }
-#annotation-options .opt-btn { width: 28px; height: 28px; border-radius: 4px; }
-#annotation-options .opt-btn.active { background: #444; color: #ffd740; }
-#mini-header.freehand-active #annotation-options .opt-mode,
-#mini-header.freehand-active #annotation-options .opt-mode + .divider {
-    display: none;
-}
-
-.opt-color {
-    width: 16px !important; height: 16px !important; border-radius: 50% !important;
-    border: 2px solid transparent !important; padding: 0 !important;
-    box-shadow: 0 0 3px rgba(0, 0, 0, 0.5); margin: 0 2px;
-}
-.opt-color.active { border-color: white !important; transform: scale(1.3); }
 
 .zoom-controls { display: flex; align-items: center; gap: 4px; }
 .zoom-controls button, #search-panel button { padding: 6px; }

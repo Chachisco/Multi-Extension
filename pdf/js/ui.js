@@ -42,88 +42,85 @@ export function setHeaderMode(mode) {
     saveState();
 }
 
-function setAnnotationActive(active) {
-    state.annotationActive = active;
-    if (active){
-        state.freehandActive = false;
-        state.eraserActive = false;
-        document.body.classList.remove('cursor-eraser');
-        document.body.classList.add('cursor-pen');
-    }
-    document.getElementById('annotation-options').classList.toggle('hidden', !active);
-    document.getElementById('text-options').classList.add('hidden');
-    header.classList.toggle('annotation-active', state.annotationActive);
-    header.classList.toggle('eraser-active', state.eraserActive);
-    header.classList.toggle('freehand-active', state.freehandActive);
-    document.getElementById('btn-annotate').classList.toggle('tool-active', state.annotationActive);
-    document.getElementById('btn-eraser').classList.toggle('tool-active', state.eraserActive);
-    document.getElementById('btn-draw').classList.toggle('tool-active', state.freehandActive);
-    document.querySelectorAll('.drawing-canvas').forEach(canvas => canvas.classList.toggle('active', state.freehandActive));
-    document.querySelectorAll('.annotation-layer').forEach(layer => layer.classList.toggle('eraser-active', state.eraserActive));
+function deactivateAllTools() {
+    state.annotationActive = false;
+    state.freehandActive = false;
+    state.textModeActive = false;
+    state.eraserActive = false;
+
+    document.body.classList.remove('cursor-pen', 'cursor-eraser', 'cursor-text');
+
+    document.getElementById('annotation-options')?.classList.add('hidden');
+    document.getElementById('text-options')?.classList.add('hidden');
+    
+    ['btn-annotate', 'btn-draw', 'btn-text-box', 'btn-eraser'].forEach(id => {
+        document.getElementById(id)?.classList.remove('tool-active');
+    });
+    
+    document.querySelectorAll('.drawing-canvas').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.annotation-layer').forEach(l => l.classList.remove('eraser-active'));
+
+    document.querySelectorAll('.opt-mode, .opt-mode-divider').forEach(el => el.style.display = '');
 }
 
-function setFreehandActive(active) {
-    state.freehandActive = active;
-    if (active) {
-        state.annotationActive = false;
-        state.eraserActive = false;
-        document.body.classList.remove('cursor-eraser');
-        document.body.classList.add('cursor-pen');
+function toggleAnnotation() {
+    const wasActive = state.annotationActive;
+    deactivateAllTools();
+    if (!wasActive) {
+        state.annotationActive = true;
+        document.getElementById('btn-annotate').classList.add('tool-active');
+        document.getElementById('annotation-options').classList.remove('hidden');
     }
-    document.getElementById('annotation-options').classList.toggle('hidden', !active && !state.annotationActive);
-    document.getElementById('text-options').classList.add('hidden');
-    header.classList.toggle('annotation-active', state.annotationActive);
-    header.classList.toggle('eraser-active', state.eraserActive);
-    header.classList.toggle('freehand-active', active);
-    document.getElementById('btn-draw').classList.toggle('tool-active', active);
-    document.getElementById('btn-annotate').classList.toggle('tool-active', state.annotationActive);
-    document.getElementById('btn-eraser').classList.toggle('tool-active', state.eraserActive);
-    document.querySelectorAll('.drawing-canvas').forEach(canvas => canvas.classList.toggle('active', active));
 }
 
-function setTextModeActive(active) {
-    state.textModeActive = active;
-    if (active) {
-        state.annotationActive = false; state.eraserActive = false; state.freehandActive = false;
-        document.body.classList.remove('cursor-eraser', 'cursor-pen');
-        document.body.classList.add('cursor-text');
-    } else {
-        document.body.classList.remove('cursor-text');
+function toggleFreehand() {
+    const wasActive = state.freehandActive;
+    deactivateAllTools();
+    if (!wasActive) {
+        state.freehandActive = true;
+        document.body.classList.add('cursor-pen'); // Muda o rato
+        document.getElementById('btn-draw').classList.add('tool-active'); // Fica amarelo
+        
+        // Esconde Highlight/Underline porque a caneta não usa isso
+        document.querySelectorAll('.opt-mode, .opt-mode-divider').forEach(el => el.style.display = 'none');
+        
+        document.getElementById('annotation-options').classList.remove('hidden');
+        document.querySelectorAll('.drawing-canvas').forEach(c => c.classList.add('active'));
     }
-    
-    document.getElementById('annotation-options').classList.add('hidden');
-    document.getElementById('text-options').classList.toggle('hidden', !active);
-    
-    document.getElementById('btn-text-box').classList.toggle('tool-active', active);
-    document.getElementById('btn-draw').classList.toggle('tool-active', false);
-    document.getElementById('btn-annotate').classList.toggle('tool-active', false);
-    document.getElementById('btn-eraser').classList.toggle('tool-active', false);
+}
+
+function toggleTextMode() {
+    const wasActive = state.textModeActive;
+    deactivateAllTools();
+    if (!wasActive) {
+        state.textModeActive = true;
+        document.body.classList.add('cursor-text'); // Muda o rato
+        document.getElementById('btn-text-box').classList.add('tool-active');
+        document.getElementById('text-options').classList.remove('hidden');
+    }
+}
+
+function toggleEraser() {
+    const wasActive = state.eraserActive;
+    deactivateAllTools();
+    if (!wasActive) {
+        state.eraserActive = true;
+        document.body.classList.add('cursor-eraser'); // Muda o rato
+        document.getElementById('btn-eraser').classList.add('tool-active');
+        document.querySelectorAll('.annotation-layer').forEach(l => l.classList.add('eraser-active'));
+    }
 }
 
 export function setupUI() {
     // Annotations
-    document.getElementById('btn-annotate').onclick = () => {
-        setAnnotationActive(!state.annotationActive);
-        setTextModeActive(false);
-    };
-    document.getElementById('btn-eraser').onclick = () => {
-        state.eraserActive = !state.eraserActive;
-        if (state.eraserActive) state.annotationActive = false;
-        state.freehandActive = false;
-        setTextModeActive(false)
-        setAnnotationActive(state.annotationActive);
-        document.body.classList.remove('cursor-pen');
-        document.body.classList.add('cursor-eraser');
-    };
-    document.getElementById('btn-draw').onclick = () => {
-        setFreehandActive(!state.freehandActive);
-        setTextModeActive(false);
-    };
-    setupDrawingTools();
+    document.getElementById('btn-annotate').onclick = toggleAnnotation;
+    document.getElementById('btn-draw').onclick = toggleFreehand;
+    document.getElementById('btn-text-box').onclick = toggleTextMode;
+    document.getElementById('btn-eraser').onclick = toggleEraser;
 
+    setupDrawingTools();
     setupTextBoxes();
-    document.getElementById('btn-text-box').onclick = () => setTextModeActive(!state.textModeActive);
-    document.getElementById('btn-text-box').onclick = () => setTextModeActive(!state.textModeActive);
+
     document.getElementById('opt-text-size').onchange = (e) => { state.currentTextSize = e.target.value; };
 
     container.addEventListener('click', event => {
@@ -759,7 +756,9 @@ function getFocusLineHeight(ruler) {
 
 function triggerExtensionDownload(blob, suggestedFilename, useSaveAs) {
     return new Promise((resolve) => {
-        let finalSuggestedName = suggestedFilename;
+
+        let safeName = suggestedFilename.replace(/[<>:"\/\\|?*]+/g, '_');
+        let finalSuggestedName = safeName;
         if (!finalSuggestedName.toLowerCase().endsWith('.pdf')) {
             finalSuggestedName += '.pdf';
         }
@@ -771,7 +770,7 @@ function triggerExtensionDownload(blob, suggestedFilename, useSaveAs) {
             saveAs: useSaveAs
         }, (downloadId) => {
             if (chrome.runtime.lastError || !downloadId) {
-                console.error("Download cancelado/com erro:", chrome.runtime.lastError);
+                console.error("Download cancelado/com erro:", chrome.runtime.lastError.message);
                 URL.revokeObjectURL(url);
                 resolve(null);
                 return;

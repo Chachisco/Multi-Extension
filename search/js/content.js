@@ -11,60 +11,6 @@ let currentGlobalIndex = -1;
 let currentSearchId = 0;
 
 // --- 1. INJEÇÃO DA UI ---
-const wrapper = document.createElement('div');
-wrapper.innerHTML = `
-    <div id="sws-sidebar" class="sws-hidden"></div>
-    <div id="sws-panel" class="sws-hidden">
-        <div id="sws-rows-container"></div>
-    </div>
-`;
-document.body.appendChild(wrapper);
-
-const panel = document.getElementById('sws-panel');
-const sidebar = document.getElementById('sws-sidebar');
-const rowsContainer = document.getElementById('sws-rows-container');
-
-const PDF_VIEWPORT = document.getElementById('viewport');
-const IS_PDF_VIEWER = PDF_VIEWPORT !== null;
-const SEARCH_ROOT = IS_PDF_VIEWER ? document.getElementById('pages-container') : document.body;
-
-if (!document.getElementById('sws-style')) {
-    const style = document.createElement('style');
-    style.id = 'sws-style';
-    style.textContent = `
-        #sws-panel { position: fixed; top: ${IS_PDF_VIEWER ? '44px' : '12px'}; right: 25px; z-index: 2147483647; background: #1e1e1e; padding: 8px; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.6); border: 1px solid #333; color: white; font-family: sans-serif; transition: transform 0.2s ease, opacity 0.2s ease; }
-        #sws-panel.sws-hidden { transform: translateY(-15px); opacity: 0; pointer-events: none; }
-        #sws-panel * { box-sizing: border-box; line-height: normal; }
-        .sws-row { display: flex; align-items: center; gap: 4px; background: #252526; padding: 4px; border-radius: 4px; border-left: 3px solid transparent; height: 32px; position: relative; overflow: hidden; }
-        .sws-input { appearance: none; background: transparent; border: none; color: #ccc; padding: 0 4px; margin: 0; outline: none; width: 180px; height: 24px; font-family: sans-serif; font-size: 13px; box-shadow: none; }
-        .sws-input:focus { color: #fff; }
-        .sws-counter { font-size: 11px; color: #888; min-width: 40px; text-align: center; margin: 0; }
-        #sws-panel button { background: transparent; border: none; color: #999; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 3px; transition: 0.15s; height: 24px; width: 24px; margin: 0; box-shadow: none; }
-        #sws-panel button:hover { background: #3a3a3c; color: white; }
-        #sws-panel button svg { width: 14px; height: 14px; display: block; }
-        .sws-toggle-btn { font-family: monospace; font-size: 12px; font-weight: bold; }
-        .sws-toggle-btn.active { color: #d7ba7d !important; background: rgba(215, 186, 125, 0.15) !important; }
-        .sws-divider { color: #444; margin: 0 2px; font-size: 10px; }
-        #sws-sidebar { position: fixed; top: 0; right: 0; width: 16px; height: 100vh; background: transparent; border: none; z-index: 2147483646; pointer-events: none; transition: opacity 0.2s; }
-        #sws-sidebar.sws-hidden { opacity: 0; }
-        .sws-marker { position: absolute; right: 0; width: 100%; height: 3px; pointer-events: auto; cursor: pointer; opacity: 0.85; transition: opacity 0.1s; border-radius: 2px; }
-        .sws-marker:hover { opacity: 1; filter: brightness(1.2); }
-        .sws-progress { position: absolute; bottom: 0; left: 0; width: 100%; height: 2px; background: transparent; pointer-events: none; }
-        .sws-progress-value { position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: #007acc; border-radius: 2px; opacity: 0; }
-        .sws-row.is-loading .sws-progress-value { opacity: 1; animation: sws-loading-anim 1s infinite linear; }
-        .sws-row.is-done .sws-progress-value { left: 0; width: 100%; background: #8be28b; opacity: 1; transition: left 0.2s, width 0.2s, background-color 0.3s; }
-        .sws-row.is-fading .sws-progress-value { opacity: 0; transition: opacity 0.5s ease 2s; }
-        @keyframes sws-loading-anim { 0% { left: -50%; width: 30%; } 50% { width: 50%; } 100% { left: 100%; width: 30%; } }
-        ::highlight(sws-color-0) { background-color: rgba(255, 235, 59, 0.4); color: black; }
-        ::highlight(sws-color-1) { background-color: rgba(139, 226, 139, 0.4); color: black; }
-        ::highlight(sws-color-2) { background-color: rgba(128, 216, 255, 0.4); color: black; }
-        ::highlight(sws-color-3) { background-color: rgba(255, 159, 159, 0.4); color: black; }
-        ::highlight(sws-color-4) { background-color: rgba(224, 64, 251, 0.4); color: white; }
-        ::highlight(sws-active) { background-color: #ff9800; color: white; }
-    `;
-    document.head.appendChild(style);
-}
-
 if (!document.getElementById('sws-panel')) {
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `
@@ -75,6 +21,15 @@ if (!document.getElementById('sws-panel')) {
     `;
     document.body.appendChild(wrapper);
 }
+
+const panel = document.getElementById('sws-panel');
+const sidebar = document.getElementById('sws-sidebar');
+const rowsContainer = document.getElementById('sws-rows-container');
+
+// A MAGIA: Garante que só pesquisa nas folhas do PDF e ignora os menus laterais/superiores!
+const PDF_VIEWPORT = document.getElementById('viewport');
+const IS_PDF_VIEWER = PDF_VIEWPORT !== null;
+const SEARCH_ROOT = IS_PDF_VIEWER ? document.getElementById('pages-container') : document.body;
 
 function renderRows() {
     rowsContainer.innerHTML = '';
@@ -142,34 +97,24 @@ function renderRows() {
 }
 
 // --- 2. EVENTOS E ATALHOS GERAIS ---
-
 window.toggleWebSearch = function() {
-    if (panel.classList.contains('sws-hidden')) renderRows();
-    panel.classList.remove('sws-hidden');
-    setTimeout(() => document.querySelector('.sws-input')?.focus(), 50);
+    if (panel.classList.contains('sws-hidden')) {
+        renderRows();
+        panel.classList.remove('sws-hidden');
+        setTimeout(() => document.querySelector('.sws-input')?.focus(), 50);
+    } else {
+        closeSearch();
+    }
 };
 
-// Escuta a ordem do Ctrl+F vinda do background.js (Em sites normais)
+// Escuta a ordem do background.js (Em sites normais)
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((request) => {
         if (request.action === "toggle-search") {
-            if (panel.classList.contains('sws-hidden')) window.toggleWebSearch();
-            else closeSearch();
+            window.toggleWebSearch();
         }
     });
 }
-
-window.addEventListener('keydown', (e) => {
-    // FECHAR
-    if (e.key === 'Escape' && !panel.classList.contains('sws-hidden')) closeSearch();
-
-    // NAVEGAÇÃO GLOBAL (Setas Cima/Baixo)
-    if (!panel.classList.contains('sws-hidden') && document.activeElement.tagName !== 'INPUT') {
-        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); jumpToGlobal(1); }
-        if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); jumpToGlobal(-1); }
-    }
-}, { capture: true });
-
 
 window.addEventListener('keydown', (e) => {
     // abrir
@@ -190,7 +135,8 @@ window.addEventListener('keydown', (e) => {
 
 function closeSearch() {
     panel.classList.add('sws-hidden'); sidebar.classList.add('sws-hidden');
-    CSS.highlights?.clear(); currentSearchId++; globalMatches = []; sidebar.innerHTML = '';
+    if (CSS.highlights) CSS.highlights.clear(); 
+    currentSearchId++; globalMatches = []; sidebar.innerHTML = '';
 }
 
 let debounceTimeout;
@@ -234,7 +180,8 @@ async function performSearch() {
         }
     });
 
-    const treeWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+    // PESQUISA APENAS NAS FOLHAS (SEARCH_ROOT) EM VEZ DO BODY!
+    const treeWalker = document.createTreeWalker(SEARCH_ROOT, NodeFilter.SHOW_TEXT, null, false);
     let textNode;
     const rangesByColor = [[], [], [], [], []];
 
@@ -309,7 +256,9 @@ function applyHighlights(searchId, rangesByColor) {
             const limit = Math.min(ranges.length, 500);
             for (let i = 0; i < limit; i++) {
                 const rect = ranges[i].getBoundingClientRect();
-                const absoluteY = rect.top + (IS_PDF_VIEWER ? PDF_VIEWPORT.scrollTop : window.scrollY);
+                const viewportOffset = IS_PDF_VIEWER ? PDF_VIEWPORT.getBoundingClientRect().top : 0;
+                const scrollOffset = IS_PDF_VIEWER ? PDF_VIEWPORT.scrollTop : window.scrollY;
+                const absoluteY = rect.top - viewportOffset + scrollOffset;
                 
                 const marker = document.createElement('div');
                 marker.className = 'sws-marker';
@@ -349,11 +298,13 @@ function executeScrollAndHighlight(range) {
     const element = range.startContainer.parentElement;
     if (element) {
         if (IS_PDF_VIEWER) {
-            // Scroll no PDF com Offset para não ficar debaixo do Header
-            const y = element.getBoundingClientRect().top + PDF_VIEWPORT.scrollTop - 100;
-            PDF_VIEWPORT.scrollTo({ top: y, behavior: 'smooth' });
+            const elementRect = element.getBoundingClientRect();
+            const viewportRect = PDF_VIEWPORT.getBoundingClientRect();
+            const absoluteY = elementRect.top - viewportRect.top + PDF_VIEWPORT.scrollTop;
+            const centerOffset = PDF_VIEWPORT.clientHeight / 2;
+            
+            PDF_VIEWPORT.scrollTo({ top: Math.max(0, absoluteY - centerOffset), behavior: 'smooth' });
         } else {
-            // Scroll nativo na Web
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }

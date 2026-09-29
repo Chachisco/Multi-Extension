@@ -6,7 +6,11 @@ const { PDFDocument, degrees } = window.PDFLib || PDFLib;
 
 async function getCurrentPdfBytes() {
     if (state.pdfDoc) {
-        return await state.pdfDoc.saveDocument();
+        if (state.pdfDoc.annotationStorage.size > 0) {
+            return await state.pdfDoc.saveDocument();
+        } else {
+            return await state.pdfDoc.getData();
+        }
     }
     if (state.pdfBytes) return state.pdfBytes.slice(0);
     const fileUrl = new URLSearchParams(window.location.search).get('file');

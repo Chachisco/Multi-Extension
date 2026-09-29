@@ -17,21 +17,78 @@ input, textarea {
 #viewport {
     position: absolute;
     top: 40px;
-    left: 0;
-    width: 100vw;
+    left: 40px;
+    width: calc(100vw - 40px);
     height: calc(100vh - 40px);
     overflow-y: auto;
     overflow-x: hidden;
     scroll-behavior: auto;
-    transition: width 0.25s ease, left 0.25s ease;
+    transition: all 0.25s ease;
 }
 body.sidebar-open-left #viewport {
-    width: calc(100vw - 250px);
-    left: 250px;
+    width: calc(100vw - 250px - 40px);
+    left: calc(250px + 40px);
 }
 body.sidebar-open-right #viewport {
-    width: calc(100vw - 250px);
+    width: calc(100vw - 250px - 40px);
+    left: 40px;
+}
+
+#vertical-toolbar {
+    position: fixed;
+    top: 40px;
     left: 0;
+    width: 40px;
+    height: calc(100vh - 40px);
+    background: #1e1e1e;
+    border-right: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 10px;
+    gap: 10px;
+    z-index: 1000;
+}
+
+#vertical-toolbar button {
+    background: transparent;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.35s ease;
+}
+
+#vertical-toolbar button:hover {
+    background: #333;
+    color: white;
+}
+
+#vertical-toolbar button.tool-active {
+    color: #ffd740;
+    background: rgba(255, 215, 64, 0.1);
+    border: 1px solid rgba(255, 215, 64, 0.3);
+}
+
+#vertical-toolbar button svg {
+    width: 18px;
+    height: 18px;
+}
+
+.v-divider {
+    width: 20px;
+    height: 1px;
+    background: #444;
+    margin: 5px 0;
+}
+
+body.sidebar-open-left #vertical-toolbar {
+    left: 250px;
 }
 #pages-container { display: flex; flex-direction: column; align-items: center; padding: 60px 0; transition: transform 0.1s ease-out; }
 .page-wrapper {
@@ -66,7 +123,7 @@ body.sidebar-open-right #lateral-slider {
 #lateral-slider::-webkit-slider-thumb { appearance: none; width: 100px; height: 8px; background: #888; border-radius: 4px; }
 
 body.sidebar-open-left #notes-sidebar {
-    left: 250px; 
+    left: 290px;
     right: auto;
     z-index: 1500;
 }
@@ -129,3 +186,60 @@ body.sidebar-open-right #notes-sidebar {
 .page-actions-buttons button:hover { background: #0376db; color: white; border-color: #0376db; }
 .page-actions-buttons button svg { width: 16px; height: 16px; }
 .page-actions-buttons button.btn-page-delete:hover { background: #e51400; border-color: #e51400; }
+
+/* =========================================
+   PAINÉIS DE OPÇÕES DAS FERRAMENTAS
+   ========================================= */
+.v-options-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px; /* <-- Espaçamento mais apertado e unido entre os botões! */
+    width: 100%;
+    margin-top: -4px; /* Junta o painel ligeiramente ao botão principal que o ativou */
+    padding-bottom: 10px;
+}
+
+.v-options-group.hidden { 
+    display: none !important; 
+}
+
+/* O input do tamanho da fonte (caixinha de números do texto) */
+#opt-text-size {
+    width: 30px;
+    background: #333;
+    border: 1px solid #555;
+    color: white;
+    padding: 4px 0;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    -moz-appearance: textfield;
+}
+#opt-text-size::-webkit-outer-spin-button,
+#opt-text-size::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+}
+#opt-text-size:focus {
+    outline: none;
+    border-color: #0376db;
+}
+
+/* Cores e Estados Ativos Específicos */
+.opt-btn.active { background: #444; color: #ffd740 !important; }
+.opt-text-align.active { background: #444; color: #0376db !important; }
+#opt-text-widget.active { background: #0376db; color: white !important; }
+
+/* Bolinhas de Cor */
+.opt-color, .opt-text-color { 
+    width: 20px !important; 
+    height: 20px !important; 
+    border-radius: 50% !important; 
+    padding: 0 !important; 
+    margin: 2px 0 !important; /* Aproxima as cores umas das outras */
+}
+.opt-color.active, .opt-text-color.active { 
+    border: 2px solid white !important; 
+    transform: scale(1.15); 
+}
