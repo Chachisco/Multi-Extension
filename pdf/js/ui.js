@@ -372,7 +372,11 @@ export function setupUI() {
         btnPreviewConfirm.onclick = async () => {
             modalPreview.classList.add('hidden');
             if (window.pendingBurnInBlob) {
-                await triggerExtensionDownload(window.pendingBurnInBlob, window.pendingBurnInName, true);
+                const finalChosenName = await triggerExtensionDownload(window.pendingBurnInBlob, window.pendingBurnInName, true);
+                
+                if (finalChosenName) {
+                    await syncStorageToNewFile(state.currentFilename, finalChosenName, false);
+                }
             }
             if (window.pendingPreviewUrl) URL.revokeObjectURL(window.pendingPreviewUrl);
             window.pendingBurnInBlob = null;
@@ -795,20 +799,63 @@ function triggerExtensionDownload(blob, suggestedFilename, useSaveAs) {
     });
 }
 
+
+async function syncStorageToNewFile(oldFilename, newFilename, copyNotesOver) {
+    if (!oldFilename || !newFilename) return;
+    
+    const items = await new Promise(resolve => chrome.storage.local.get(null, resolve));
+    
+    const oldPrefix = `${oldFilename}_pg`;
+    const newPrefix = `${newFilename}_pg`; 
+    
+    const keysToRemove = [];
+    const newStorage = {};
+
+    Object.keys(items).forEach(key => {
+        if (key.startsWith(newPrefix)) keysToRemove.push(key);
+    });
+
+    if (copyNotesOver) {
+        Object.keys(items).forEach(key => {
+            if (key.startsWith(oldPrefix)) {
+                const suffix = key.substring(oldPrefix.length);
+                newStorage[`${newPrefix}${suffix}`] = items[key];
+            }
+        });
+    }
+
+    chrome.storage.local.remove(keysToRemove, () => {
+        if (Object.keys(newStorage).length > 0) {
+            chrome.storage.local.set(newStorage, () => console.log(`Storage sincronizado para: ${newFilename}`));
+        } else {
+            console.log(`Storage limpo com sucesso para: ${newFilename}`);
+        }
+    });
+}
+
 export async function downloadNormal(requestSaveAs = false) {
     if (!state.pdfDoc) return;
     
-    let data;
-    if (state.pdfDoc.annotationStorage.size > 0) {
-        data = await state.pdfDoc.saveDocument();
-    } else {
-        data = await state.pdfDoc.getData();
-    }
-    
+    const data = state.pdfDoc.annotationStorage.size > 0 
+        ? await state.pdfDoc.saveDocument() 
+        : await state.pdfDoc.getData();
+        
     const blob = new Blob([data], { type: 'application/pdf' });
     const safeName = document.title !== 'UniPDF Pro' ? document.title : 'document.pdf';
-    triggerExtensionDownload(blob, safeName, requestSaveAs);
+    
+    const finalName = await triggerExtensionDownload(blob, safeName, requestSaveAs);
+
+    if (finalName && finalName !== state.currentFilename) {
+        const shouldCopyNotes = !requestSaveAs;
+        await syncStorageToNewFile(state.currentFilename, finalName, shouldCopyNotes);
+        
+        if (shouldCopyNotes) {
+            state.currentFilename = finalName;
+            document.title = finalName;
+        }
+    }
 }
+
 export async function downloadBurnIn() {
     if (!state.pdfBytes) return;
 
@@ -1027,44 +1074,13 @@ export async function downloadBurnIn() {
 
 export async function downloadWithNotes() {
     if (!state.pdfBytes) return;
-
     const data = await state.pdfDoc.saveDocument();
-    const safeName = document.title !== 'UniPDF Pro' ? document.title : 'document.pdf';
-    const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
-
+    const blob = new Blob([data], { type: 'application/pdf' });
+    const safeName = document.title !== 'UniPDF Pro' ? `Exportado_${document.title}` : 'Exportado_document.pdf';
+    
     const finalChosenName = await triggerExtensionDownload(blob, safeName, true);
     
-    if (finalChosenName && finalChosenName !== state.currentFilename) {
-        const items = await new Promise(resolve => chrome.storage.local.get(null, resolve));
-        const oldPrefix = `${state.currentFilename}_pg`;
-        const newPrefix = `${finalChosenName}_pg`;
-        
-        const keysToRemove = [];
-        const newStorage = {};
-        let hasDataToCopy = false;
-
-        Object.keys(items).forEach(key => {
-            if (key.startsWith(newPrefix)) {
-                keysToRemove.push(key);
-            }
-        });
-
-        // Prepara as notas do documento ATUAL para serem copiadas para lá
-        Object.keys(items).forEach(key => {
-            if (key.startsWith(oldPrefix)) {
-                const suffix = key.substring(oldPrefix.length); 
-                newStorage[`${newPrefix}${suffix}`] = items[key];
-                hasDataToCopy = true;
-            }
-        });
-
-        // Apaga o lixo antigo e grava os novos no ficheiro de destino
-        chrome.storage.local.remove(keysToRemove, () => {
-            if (hasDataToCopy) {
-                chrome.storage.local.set(newStorage, () => {
-                    console.log(`Substituição/Cópia de Notas concluída para: ${finalChosenName}`);
-                });
-            }
-        });
+    if (finalChosenName) {
+        await syncStorageToNewFile(state.currentFilename, finalChosenName, true);
     }
 }
