@@ -528,10 +528,11 @@ function setupGlobalEvents() {
 }
 
 function handleKeydown(event) {
+    const isTyping = document.activeElement?.tagName === 'INPUT' || 
+                     document.activeElement?.tagName === 'TEXTAREA' || 
+                     document.activeElement?.isContentEditable;
      if (event.ctrlKey && event.key.toLowerCase() === 'a') { //ctrl + 'a' -> selecionar o conteúdo do pdf inteiro, excluindo pagina e zoom
-        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-            return; 
-        }
+        if (isTyping) return;
 
         event.preventDefault(); 
         const currentPage = getCurrentPageNumber();
@@ -547,7 +548,7 @@ function handleKeydown(event) {
         return;
     }
 
-    if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') {
+    if (isTyping) {
         if (event.key === 'Escape') document.activeElement.blur();
         return;
     }
@@ -756,7 +757,6 @@ function getFocusLineHeight(ruler) {
 
 function triggerExtensionDownload(blob, suggestedFilename, useSaveAs) {
     return new Promise((resolve) => {
-
         let safeName = suggestedFilename.replace(/[<>:"\/\\|?*]+/g, '_');
         let finalSuggestedName = safeName;
         if (!finalSuggestedName.toLowerCase().endsWith('.pdf')) {

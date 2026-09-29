@@ -44,14 +44,44 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
     // 1. Botão de Copiar
     const copyBtn = document.createElement('button');
     copyBtn.className = 'copy-btn';
-    copyBtn.title = 'Copiar texto';
+    copyBtn.title = 'Copiar (Click: Formato Rico | Shift+Click: Texto Cru)';
     copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
-    copyBtn.onclick = (e) => {
+    
+    copyBtn.onclick = async (e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(textarea.value);
-        const originalHTML = copyBtn.innerHTML;
-        copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-        setTimeout(() => { copyBtn.innerHTML = originalHTML; }, 1500);
+        const isRaw = e.shiftKey;
+        
+        try {
+            if (isRaw) {
+                await navigator.clipboard.writeText(editor.dataset.raw);
+            } else {
+                const htmlToCopy = document.activeElement === editor ? parseRichText(editor.dataset.raw) : editor.innerHTML;
+                const plainToCopy = editor.innerText;
+                
+                const clipboardItem = new ClipboardItem({
+                    "text/plain": new Blob([plainToCopy], { type: "text/plain" }),
+                    "text/html": new Blob([htmlToCopy], { type: "text/html" })
+                });
+                await navigator.clipboard.write([clipboardItem]);
+            }
+            
+            // Feedback Visual (Fica verde e avisa o que copiou)
+            const originalHTML = copyBtn.innerHTML;
+            const originalTitle = copyBtn.title;
+            
+            copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#8be28b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+            copyBtn.title = isRaw ? 'Copiado (RAW)!' : 'Copiado (Formatado)!';
+            
+            setTimeout(() => { 
+                copyBtn.innerHTML = originalHTML; 
+                copyBtn.title = originalTitle;
+            }, 2000);
+            
+        } catch (err) {
+            console.error("Erro ao copiar (usando fallback):", err);
+            // Fallback de segurança se o browser bloquear a API avançada
+            navigator.clipboard.writeText(isRaw ? editor.dataset.raw : editor.innerText);
+        }
     };
 
     // 2. Botão de Lock
@@ -65,6 +95,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
     lockBtn.onclick = (e) => {
         e.stopPropagation();
         const locked = note.classList.toggle('locked');
+        editor.contentEditable = !locked;
         lockBtn.innerHTML = locked 
             ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`
             : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
@@ -93,9 +124,24 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         deleteNote();
     };
 
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.placeholder = 'Escreve a tua nota...';
+    const editor = document.createElement('div');
+    editor.className = 'note-editor';
+    editor.contentEditable = !isLocked;
+    editor.dataset.raw = text;
+    editor.innerHTML = text === '' ? '' : parseRichText(text);
+    if (text === '') editor.setAttribute('placeholder', 'Escreve a tua nota...');
+
+    // copyBtn.onclick = (e) => {
+    //     e.stopPropagation();
+    //     navigator.clipboard.writeText(editor.dataset.raw);
+    //     const originalHTML = copyBtn.innerHTML;
+    //     copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    //     setTimeout(() => { copyBtn.innerHTML = originalHTML; }, 1500);
+    // };
+
+    header.onmousedown = (e) => {
+        e.preventDefault(); 
+    };
 
     header.appendChild(eyeBtn);
     header.appendChild(copyBtn);
@@ -104,7 +150,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
     header.appendChild(delBtn);
     
     popup.appendChild(header);
-    popup.appendChild(textarea);
+    popup.appendChild(editor);
     note.appendChild(popup);
     overlay.appendChild(note);
 
@@ -146,20 +192,40 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         e.stopPropagation();
         if (note.classList.contains('pinned')) {
             note.classList.add('active');
-            textarea.focus();
             return;
         }
         document.querySelectorAll('.sticky-note.active').forEach(item => {
             if (item !== note && !item.classList.contains('pinned')) item.classList.remove('active');
         });
         note.classList.add('active');
-        textarea.focus();
     };
 
-    textarea.onkeydown = (e) => {
+    editor.onmousedown = (e) => {
+        if (note.classList.contains('locked')) return;
+    };
+
+    editor.onfocus = () => {
+        if (note.classList.contains('locked')) return;
+        editor.innerText = editor.dataset.raw; 
+    };
+
+    editor.onblur = () => {
+        editor.dataset.raw = editor.innerText;
+        editor.innerHTML = parseRichText(editor.dataset.raw);
+        saveNotesForPage(pageNum, overlay);
+    };
+
+    editor.oninput = () => {
+        if (document.activeElement === editor) {
+            editor.dataset.raw = editor.innerText;
+            saveNotesForPage(pageNum, overlay);
+        }
+    };
+
+    editor.onkeydown = (e) => {
         if (e.key === 'Escape') {
             if (!note.classList.contains('pinned')) note.classList.remove('active');
-            note.focus();
+            editor.blur();
         }
         if (e.ctrlKey && (e.key === 'Delete' || e.key === 'Backspace')) {
             e.preventDefault();
@@ -167,8 +233,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         }
     };
 
-    textarea.oninput = () => saveNotesForPage(pageNum, overlay);
-    if (text === '') setTimeout(() => { note.classList.add('active'); textarea.focus(); }, 50);
+    if (text === '') setTimeout(() => { note.classList.add('active'); editor.focus(); }, 50);
 
     let deletedNote = note;
     function deleteNote() {
@@ -178,7 +243,7 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
             pageNum,
             x: parseFloat(note.style.left),
             y: parseFloat(note.style.top),
-            text: textarea.value,
+            text: editor.dataset.raw, // Lemos sempre o RAW para o histórico!
             pinned: note.classList.contains('pinned'),
             locked: note.classList.contains('locked'),
             exportable: !note.classList.contains('ghost-note')
@@ -207,7 +272,7 @@ export function saveNotesForPage(pageNum, overlay) {
     const notes = Array.from(overlay.querySelectorAll('.sticky-note')).map(note => ({
         x: parseFloat(note.style.left),
         y: parseFloat(note.style.top),
-        text: note.querySelector('textarea').value,
+        text: note.querySelector('.note-editor').dataset.raw,
         pinned: note.classList.contains('pinned'),
         locked: note.classList.contains('locked'),
         exportable: !note.classList.contains('ghost-note')
@@ -223,7 +288,6 @@ export function loadNotesForPage(pageNum) {
     overlay.innerHTML = '';
     const key = `${state.currentFilename}_pg${pageNum}_notes`;
     chrome.storage.local.get([key], result => {
-        // LÊ O ESTADO DO OLHO AO CARREGAR O PDF!
         (result[key] || []).forEach(note => addNoteToUI(overlay, pageNum, note.x, note.y, note.text, note.pinned, note.locked, note.exportable !== false));
         updateNotesSidebar();
     });
@@ -265,4 +329,61 @@ export function updateNotesSidebar() {
             }
         });
     });
+}
+
+function parseRichText(str) {
+    if (!str) return '';
+    
+    let html = str
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') 
+        .replace(/\n/g, '<br>');
+
+    html = html.replace(/&lt;=&gt;/g, '⇔');
+    html = html.replace(/=&gt;/g, '⇒');
+    html = html.replace(/&lt;-/g, '←');
+    html = html.replace(/-&gt;/g, '→');
+    html = html.replace(/&gt;=/g, '≥');
+    html = html.replace(/&lt;=/g, '≤');
+    html = html.replace(/!=/g, '≠');
+    html = html.replace(/~=/g, '≈');
+    html = html.replace(/\\\+-/g, '±');
+
+    // 3. Símbolos Gregos e Matemáticos
+    const symbolsMap = {
+        '/alpha': 'α', '/beta': 'β', '/gamma': 'γ', '/Gamma': 'Γ', '/delta': 'δ', '/Delta': 'Δ',
+        '/epsilon': 'ε', '/zeta': 'ζ', '/eta': 'η', '/theta': 'θ', '/Theta': 'Θ', '/iota': 'ι',
+        '/kappa': 'κ', '/lambda': 'λ', '/Lambda': 'Λ', '/mu': 'μ', '/nu': 'ν', '/xi': 'ξ', '/Xi': 'Ξ',
+        '/pi': 'π', '/Pi': 'Π', '/rho': 'ρ', '/sigma': 'σ', '/Sigma': 'Σ', '/tau': 'τ',
+        '/upsilon': 'υ', '/phi': 'φ', '/Phi': 'Φ', '/chi': 'χ', '/psi': 'ψ', '/Psi': 'Ψ', '/omega': 'ω', '/Omega': 'Ω',
+        '/inf': '∞', '/int': '∫', '/sum': '∑', '/prod': '∏', '/nabla': '∇', '/part': '∂'
+    };
+    Object.keys(symbolsMap).forEach(key => {
+        html = html.replace(new RegExp(key, 'g'), symbolsMap[key]);
+    });
+
+    // 4. Blocos de Código Inline (Evita que o código lá dentro seja formatado acidentalmente)
+    html = html.replace(/`([^`]+)`/g, '<code style="background: rgba(0,0,0,0.08); padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 11.5px; color: #b9770e;">$1</code>');
+
+    html = html.replace(/__(?!\s)(.*?)(?<!\s)__/g, '<u>$1</u>');
+    html = html.replace(/\*\*(?!\s)(.*?)(?<!\s)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(?!\s)(.*?)(?<!\s)\*/g, '<em>$1</em>');
+    html = html.replace(/==(?!\s)(.*?)(?<!\s)==/g, '<mark style="background: rgba(255, 215, 64, 0.6); padding: 0 3px; border-radius: 2px;">$1</mark>');
+
+    // 6. Checklists
+    html = html.replace(/\[ \]/g, '<input type="checkbox" disabled style="margin: 0 4px 0 0; vertical-align: middle;">');
+    html = html.replace(/\[[xX]\]/g, '<input type="checkbox" checked disabled style="margin: 0 4px 0 0; vertical-align: middle;">');
+
+    // 7. Subscritos e Sobrescritos
+    // Permitir agrupar vários carateres usando [ ], ex: a^[b+c]
+    const base = '([a-zA-Z0-9α-ωΑ-Ω)\\]])'; // Aceita letras, números, gregos, e fecho de parênteses como base
+
+    // Primeiro resolvemos os que têm parênteses retos (ex: a_[b+c])
+    html = html.replace(new RegExp(base + '_\\\[([^\\]]+)\\\]', 'g'), '$1<sub>$2</sub>');
+    html = html.replace(new RegExp(base + '\\\^\\\[([^\\]]+)\\\]', 'g'), '$1<sup>$2</sup>');
+    
+    // Depois resolvemos os simples sem parênteses (ex: a_2)
+    html = html.replace(new RegExp(base + '_([a-zA-Z0-9]+)', 'g'), '$1<sub>$2</sub>');
+    html = html.replace(new RegExp(base + '\\\^([a-zA-Z0-9]+)', 'g'), '$1<sup>$2</sup>');
+
+    return html;
 }

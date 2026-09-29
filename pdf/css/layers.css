@@ -262,14 +262,17 @@
 .eye-btn svg { width: 14px; height: 14px; }
 .sticky-note.ghost-note .eye-btn { color: #888; }
 
-.note-popup textarea {
+.note-popup textarea, .note-popup .note-editor {
     border: none; background: #fff9c4; padding: 8px 10px 10px;
     font-family: sans-serif; font-size: 13px; outline: none; resize: both;
     color: #333;
     min-width: 150px; min-height: 80px;
     width: 200px; height: 100px; 
     box-sizing: border-box;
+    overflow-y: auto;
+    white-space: pre-wrap;
 }
+.sticky-note.locked .note-editor { background: #fdf5e6; border-color: #d68910; }
 
 #notes-sidebar {
     position: fixed; top: 40px; left: 40px; width: 8px;
