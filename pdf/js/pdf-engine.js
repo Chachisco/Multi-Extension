@@ -180,6 +180,12 @@ export async function loadPDF(source, filename) {
         container.appendChild(wrapper);
         initDrawingLayer(wrapper, pageNum);
 
+        wrapper.querySelector('.btn-page-preview').onclick = () => {
+            if (typeof window.showReferencePreview === 'function') {
+                window.showReferencePreview(pageNum, `Pág. ${pageNum}`);
+            }
+        };
+
         // LÓGICA DO BOTÃO COPIAR
         wrapper.querySelector('.btn-page-copy').onclick = () => {
             const textLayer = wrapper.querySelector('.textLayer');

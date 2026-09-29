@@ -89,7 +89,7 @@ export async function deleteSinglePage(pageNum, keepNotes) {
         await syncStorageAfterEdit('DELETE', pageNum, null, keepNotes);
         
         const modifiedBytes = await pdfDoc.save();
-        reloadViewerWithNewBytes(modifiedBytes);
+        reloadViewerWithNewBytes(modifiedBytes, Math.max(1, pageNum - 1));
     } catch (e) { console.error("Erro ao apagar:", e); }
 }
 
@@ -102,7 +102,7 @@ export async function rotateSinglePage(pageNum, angleDelta) {
         page.setRotation(degrees(currentRotation + angleDelta));
         
         const modifiedBytes = await pdfDoc.save();
-        reloadViewerWithNewBytes(modifiedBytes);
+        reloadViewerWithNewBytes(modifiedBytes, pageNum);
     } catch (e) { console.error("Erro ao rodar:", e); }
 }
 
@@ -126,13 +126,24 @@ export async function reorderPDFPages(fromPage, toPage) {
         await syncStorageAfterEdit('MOVE', fromPage, toPage);
 
         const modifiedBytes = await newPdf.save();
-        reloadViewerWithNewBytes(modifiedBytes);
+        reloadViewerWithNewBytes(modifiedBytes, toPage);
     } catch (e) { console.error("Erro ao reordenar:", e); }
 }
 
-function reloadViewerWithNewBytes(bytes) {
+async function reloadViewerWithNewBytes(bytes, targetPage = null) {
     state.pdfBytes = bytes;
-    loadPDF(bytes.slice(0), state.currentFilename);
+    const pageToScroll = targetPage || document.getElementById('page-input').value || 1;
+
+    await loadPDF(bytes.slice(0), state.currentFilename);
+
+    setTimeout(() => {
+        const wrapper = document.getElementById(`page-wrapper-${pageToScroll}`);
+        const viewport = document.getElementById('viewport');
+        if (wrapper && viewport) {
+            document.getElementById('page-input').value = pageToScroll;
+            viewport.scrollTo({ top: Math.max(0, wrapper.offsetTop - 42), behavior: 'auto' });
+        }
+    }, 150);
 }
 
 export async function mergePDFs(newPdfBytes, insertAtPage) {
@@ -144,7 +155,6 @@ export async function mergePDFs(newPdfBytes, insertAtPage) {
         const numNewPages = importedPdf.getPageCount();
         const totalMainPages = mainPdf.getPageCount();
 
-        // Determina onde inserir (0-based) e onde empurrar o Storage (1-based)
         let insertIdx = totalMainPages; 
         let shiftStartingFrom = totalMainPages + 1; 
 
@@ -168,7 +178,7 @@ export async function mergePDFs(newPdfBytes, insertAtPage) {
         }
 
         const modifiedBytes = await mainPdf.save();
-        reloadViewerWithNewBytes(modifiedBytes);
+        reloadViewerWithNewBytes(modifiedBytes, shiftStartingFrom);
         
     } catch (e) {
         console.error("Erro ao juntar PDFs:", e);
