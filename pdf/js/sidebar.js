@@ -488,6 +488,17 @@ async function loadFiguresList() {
 
                     let context = pageText.substring(matchStart, matchEnd + 80).trim();
                     context = context.replace(/\s+/g, ' ');
+                     let accumulatedLength = 0;
+                    let destY = null;
+                    
+                    for (const item of textContent.items) {
+                        const len = item.str.length + 1;
+                        if (accumulatedLength + len > matchStart) {
+                            destY = item.transform[5];
+                            break;
+                        }
+                        accumulatedLength += len;
+                    }
 
                     globalFiguresData.push({
                         pageNum: i,
@@ -495,7 +506,8 @@ async function loadFiguresList() {
                         isMention: isMention,
                         isCaption: isCaption,
                         matchText: match[0],
-                        fullText: context
+                        fullText: context,
+                        destY: destY
                     });
                 }
             }
@@ -553,11 +565,30 @@ function renderFiguresList() {
         }
         
         row.title = "Clica para ir à localização. Shift+Click para Preview.";
-        row.onclick = () => {
+        row.onclick = async () => {
+            // Se for SHIFT+Click -> Abre na Janela Gigante (com a nova coordenada Y!)
             if (window.isShiftPressed && typeof window.showReferencePreview === 'function') {
-                window.showReferencePreview(fig.pageNum, fig.matchText);
+                window.showReferencePreview(fig.pageNum, fig.matchText, fig.destY);
             } else {
-                scrollToPage(fig.pageNum);
+                // Se for Clique Normal -> Vai lá ter! 
+                const wrapper = document.getElementById(`page-wrapper-${fig.pageNum}`);
+                if (!wrapper) return;
+                
+                document.getElementById('page-input').value = fig.pageNum;
+                const viewport = document.getElementById('viewport');
+                let targetScrollTop = wrapper.offsetTop - 42; 
+
+                // Se conseguimos capturar o Y, calculamos o centro do ecrã!
+                if (fig.destY !== null) {
+                    const page = await state.pdfDoc.getPage(fig.pageNum);
+                    const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
+                    
+                    const pdfToHtmlY = vp.height - (fig.destY * state.currentScale);
+                    const centerOffset = viewport.clientHeight / 2;
+                    targetScrollTop = wrapper.offsetTop + pdfToHtmlY - centerOffset;
+                }
+
+                viewport.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
             }
         };
         return row;
