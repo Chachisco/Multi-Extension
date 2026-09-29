@@ -566,11 +566,9 @@ function renderFiguresList() {
         
         row.title = "Clica para ir à localização. Shift+Click para Preview.";
         row.onclick = async () => {
-            // Se for SHIFT+Click -> Abre na Janela Gigante (com a nova coordenada Y!)
             if (window.isShiftPressed && typeof window.showReferencePreview === 'function') {
                 window.showReferencePreview(fig.pageNum, fig.matchText, fig.destY);
             } else {
-                // Se for Clique Normal -> Vai lá ter! 
                 const wrapper = document.getElementById(`page-wrapper-${fig.pageNum}`);
                 if (!wrapper) return;
                 
@@ -578,7 +576,6 @@ function renderFiguresList() {
                 const viewport = document.getElementById('viewport');
                 let targetScrollTop = wrapper.offsetTop - 42; 
 
-                // Se conseguimos capturar o Y, calculamos o centro do ecrã!
                 if (fig.destY !== null) {
                     const page = await state.pdfDoc.getPage(fig.pageNum);
                     const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
