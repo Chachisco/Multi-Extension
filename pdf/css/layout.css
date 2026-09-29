@@ -37,7 +37,7 @@ body.sidebar-open-right #viewport {
 #vertical-toolbar {
     position: fixed;
     top: 40px;
-    left: 0;
+    left: 0px;
     width: 40px;
     height: calc(100vh - 40px);
     background: #1e1e1e;
@@ -61,7 +61,6 @@ body.sidebar-open-right #viewport {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: 0.35s ease;
 }
 
 #vertical-toolbar button:hover {
@@ -87,9 +86,6 @@ body.sidebar-open-right #viewport {
     margin: 5px 0;
 }
 
-body.sidebar-open-left #vertical-toolbar {
-    left: 250px;
-}
 #pages-container { display: flex; flex-direction: column; align-items: center; padding: 60px 0; transition: transform 0.1s ease-out; }
 .page-wrapper {
     position: relative;
@@ -124,11 +120,6 @@ body.sidebar-open-right #lateral-slider {
 
 body.sidebar-open-left #notes-sidebar {
     left: 290px;
-    right: auto;
-    z-index: 1500;
-}
-body.sidebar-open-right #notes-sidebar {
-    left: 0;
     right: auto;
     z-index: 1500;
 }

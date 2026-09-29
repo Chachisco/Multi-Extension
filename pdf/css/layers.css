@@ -385,3 +385,22 @@
 .free-text-box.is-editing .free-text-input {
     pointer-events: auto;
 }
+
+
+/* =========================================
+   10. highlight de referencias
+   ========================================= */
+#jump-highlight {
+    position: absolute;
+    background-color: rgba(255, 235, 59, 0.6);
+    border-radius: 4px;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 2.0s ease-in 2.0s ease-out;
+}
+
+#jump-highlight.hidden {
+    opacity: 0;
+    transition: none;
+}

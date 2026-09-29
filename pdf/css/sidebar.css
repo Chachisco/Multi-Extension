@@ -11,13 +11,14 @@
 }
 
 #pdf-sidebar.pos-left {
-    left: 0px;
+    left: 40px;
     border-right: 1px solid #333;
     box-shadow: 2px 0 10px rgba(0,0,0,0.3);
 }
 
 #pdf-sidebar.pos-left.closed {
-    transform: translateX(-110%);
+
+    transform: translateX(-120%);
 }
 
 #pdf-sidebar.pos-right {

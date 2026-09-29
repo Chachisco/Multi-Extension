@@ -488,13 +488,17 @@ async function loadFiguresList() {
 
                     let context = pageText.substring(matchStart, matchEnd + 80).trim();
                     context = context.replace(/\s+/g, ' ');
-                     let accumulatedLength = 0;
+                    let accumulatedLength = 0;
                     let destY = null;
-                    
+                    let destX = null;
+                    let destW = null;
+
                     for (const item of textContent.items) {
                         const len = item.str.length + 1;
                         if (accumulatedLength + len > matchStart) {
+                            destX = item.transform[4];
                             destY = item.transform[5];
+                            destW = item.width || 40;
                             break;
                         }
                         accumulatedLength += len;
@@ -507,7 +511,9 @@ async function loadFiguresList() {
                         isCaption: isCaption,
                         matchText: match[0],
                         fullText: context,
-                        destY: destY
+                        destY: destY,
+                        destX: destX,
+                        destW: destW
                     });
                 }
             }
@@ -565,6 +571,7 @@ function renderFiguresList() {
         }
         
         row.title = "Clica para ir à localização. Shift+Click para Preview.";
+
         row.onclick = async () => {
             if (window.isShiftPressed && typeof window.showReferencePreview === 'function') {
                 window.showReferencePreview(fig.pageNum, fig.matchText, fig.destY);
@@ -586,6 +593,10 @@ function renderFiguresList() {
                 }
 
                 viewport.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+
+                if (typeof window.flashHighlight === 'function') {
+                    window.flashHighlight(fig.pageNum, fig.destX, fig.destY, fig.destW);
+                }
             }
         };
         return row;

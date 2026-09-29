@@ -34,10 +34,11 @@ const linkService = {
                 const pageIndex = await state.pdfDoc.getPageIndex(destination[0]);
                 const targetPage = pageIndex + 1; 
 
-                let destY = null;
+                let destY = null, destX = null;
                 const command = destination[1]?.name;
                 
                 if (command === 'XYZ' || command === 'FitR') {
+                    if (typeof destination[2] === 'number') destX = destination[2];
                     if (typeof destination[3] === 'number') destY = destination[3];
                 } else if (command === 'FitH' || command === 'FitV' || command === 'FitBH' || command === 'FitBV') {
                     if (typeof destination[2] === 'number') destY = destination[2];
@@ -66,12 +67,16 @@ const linkService = {
                         const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
                         
                         const pdfToHtmlY = vp.height - (destY * state.currentScale);
-                        
                         const centerOffset = viewport.clientHeight / 2;
                         targetScrollTop = wrapper.offsetTop + pdfToHtmlY - centerOffset;
                     }
 
                     viewport.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' }); 
+                    setTimeout(() => {
+                        if (typeof window.flashHighlight === 'function') {
+                            window.flashHighlight(targetPage, destX, destY, null, true);
+                        }
+                    }, 100);
                 }
             } catch (e) {
                 console.warn("Erro ao navegar para o link interno:", e);
@@ -457,3 +462,55 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
         console.error("Erro ao gerar preview de referência:", err);
     }
 }
+
+window.flashHighlight = async function(pageNum, pdfX, pdfY, pdfW, isLinkTarget = false) {
+    if (pdfY === null || pdfY === undefined) return;
+    
+    const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
+    if (!wrapper) return;
+
+    const page = await state.pdfDoc.getPage(pageNum);
+    const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
+
+    const safeX = (pdfX !== null && pdfX !== undefined) ? pdfX : 30; 
+    
+    const safeW = (pdfW !== null && pdfW !== undefined) ? pdfW : (isLinkTarget ? 350 : 150); 
+
+    const htmlX = safeX * state.currentScale;
+    const htmlY = vp.height - (pdfY * state.currentScale);
+    const htmlW = safeW * state.currentScale;
+
+    const flashBox = document.getElementById('jump-highlight');
+    if (!flashBox) return;
+
+    if (flashBox.hideTimeout) clearTimeout(flashBox.hideTimeout);
+    if (flashBox.fadeTimeout) clearTimeout(flashBox.fadeTimeout);
+
+    wrapper.appendChild(flashBox);
+    
+    flashBox.style.left = `${htmlX - 5}px`;
+    flashBox.style.width = `${htmlW + 10}px`;
+    
+    if (isLinkTarget) {
+        flashBox.style.top = `${htmlY + (1 * state.currentScale)}px`;
+        flashBox.style.height = `${20 * state.currentScale}px`;
+    } else {
+        flashBox.style.top = `${htmlY - (12 * state.currentScale)}px`;
+        flashBox.style.height = `${16 * state.currentScale}px`;
+    }
+    
+    flashBox.classList.remove('hidden');
+    flashBox.style.transition = 'none';
+    flashBox.style.opacity = '1';
+
+    void flashBox.offsetHeight;
+    flashBox.style.transition = 'opacity 1.5s ease-in-out';
+
+    flashBox.fadeTimeout = setTimeout(() => { 
+        flashBox.style.opacity = '0';
+    }, 1200);
+
+    flashBox.hideTimeout = setTimeout(() => {
+        flashBox.classList.add('hidden'); 
+    }, 2700);
+};
