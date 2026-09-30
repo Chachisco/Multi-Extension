@@ -26,10 +26,9 @@ const panel = document.getElementById('sws-panel');
 const sidebar = document.getElementById('sws-sidebar');
 const rowsContainer = document.getElementById('sws-rows-container');
 
-// A MAGIA: Garante que só pesquisa nas folhas do PDF e ignora os menus laterais/superiores!
-const PDF_VIEWPORT = document.getElementById('viewport');
-const IS_PDF_VIEWER = PDF_VIEWPORT !== null;
-const SEARCH_ROOT = IS_PDF_VIEWER ? document.getElementById('pages-container') : document.body;
+function getPdfViewport() { return document.getElementById('viewport'); }
+function isPdfViewer() { return getPdfViewport() !== null; }
+function getSearchRoot() { return isPdfViewer() ? document.getElementById('pages-container') : document.body; }
 
 function renderRows() {
     rowsContainer.innerHTML = '';
@@ -107,7 +106,6 @@ window.toggleWebSearch = function() {
     }
 };
 
-// Escuta a ordem do background.js (Em sites normais)
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((request) => {
         if (request.action === "toggle-search") {
@@ -117,17 +115,25 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
 }
 
 window.addEventListener('keydown', (e) => {
-    // abrir
     if (e.ctrlKey && e.key.toLowerCase() === 'f') {
-        e.preventDefault(); e.stopPropagation();
-        if (panel.classList.contains('sws-hidden')) renderRows();
-        panel.classList.remove('sws-hidden');
-        document.querySelector('.sws-input')?.focus();
+        e.preventDefault(); 
+        e.stopPropagation();
+        
+        if (panel.classList.contains('sws-hidden')) {
+            renderRows();
+            panel.classList.remove('sws-hidden');
+        }
+        
+        const input = document.querySelector('.sws-input');
+        if (input) {
+            input.focus();
+            input.select();
+        }
     }
-    // fechar
-    if (e.key === 'Escape' && !panel.classList.contains('sws-hidden')) closeSearch();
-
-    if (!panel.classList.contains('sws-hidden') && document.activeElement.tagName !== 'INPUT') {
+    else if (e.key === 'Escape' && !panel.classList.contains('sws-hidden')) {
+        closeSearch();
+    }
+    else if (!panel.classList.contains('sws-hidden') && document.activeElement.tagName !== 'INPUT') {
         if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); jumpToGlobal(1); }
         if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); jumpToGlobal(-1); }
     }
@@ -180,8 +186,7 @@ async function performSearch() {
         }
     });
 
-    // PESQUISA APENAS NAS FOLHAS (SEARCH_ROOT) EM VEZ DO BODY!
-    const treeWalker = document.createTreeWalker(SEARCH_ROOT, NodeFilter.SHOW_TEXT, null, false);
+    const treeWalker = document.createTreeWalker(getSearchRoot(), NodeFilter.SHOW_TEXT, null, false);
     let textNode;
     const rangesByColor = [[], [], [], [], []];
 
@@ -245,7 +250,7 @@ function applyHighlights(searchId, rangesByColor) {
     if (!CSS.highlights) return;
 
     sidebar.innerHTML = ''; 
-    const pageHeight = IS_PDF_VIEWER ? PDF_VIEWPORT.scrollHeight : document.documentElement.scrollHeight;
+    const pageHeight = isPdfViewer() ? getPdfViewport().scrollHeight : document.documentElement.scrollHeight;
 
     rangesByColor.forEach((ranges, idx) => {
         if (ranges.length > 0) {
@@ -256,8 +261,8 @@ function applyHighlights(searchId, rangesByColor) {
             const limit = Math.min(ranges.length, 500);
             for (let i = 0; i < limit; i++) {
                 const rect = ranges[i].getBoundingClientRect();
-                const viewportOffset = IS_PDF_VIEWER ? PDF_VIEWPORT.getBoundingClientRect().top : 0;
-                const scrollOffset = IS_PDF_VIEWER ? PDF_VIEWPORT.scrollTop : window.scrollY;
+                const viewportOffset = isPdfViewer() ? getPdfViewport().getBoundingClientRect().top : 0;
+                const scrollOffset = isPdfViewer() ? getPdfViewport().scrollTop : window.scrollY;
                 const absoluteY = rect.top - viewportOffset + scrollOffset;
                 
                 const marker = document.createElement('div');
@@ -297,13 +302,13 @@ function executeScrollAndHighlight(range) {
 
     const element = range.startContainer.parentElement;
     if (element) {
-        if (IS_PDF_VIEWER) {
+        if (isPdfViewer()) {
             const elementRect = element.getBoundingClientRect();
-            const viewportRect = PDF_VIEWPORT.getBoundingClientRect();
-            const absoluteY = elementRect.top - viewportRect.top + PDF_VIEWPORT.scrollTop;
-            const centerOffset = PDF_VIEWPORT.clientHeight / 2;
+            const viewportRect = getPdfViewport().getBoundingClientRect();
+            const absoluteY = elementRect.top - viewportRect.top + getPdfViewport().scrollTop;
+            const centerOffset = getPdfViewport().clientHeight / 2;
             
-            PDF_VIEWPORT.scrollTo({ top: Math.max(0, absoluteY - centerOffset), behavior: 'smooth' });
+            getPdfViewport().scrollTo({ top: Math.max(0, absoluteY - centerOffset), behavior: 'smooth' });
         } else {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }

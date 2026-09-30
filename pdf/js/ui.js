@@ -557,12 +557,6 @@ function handleKeydown(event) {
         return;
     }
 
-    if (event.ctrlKey && event.key.toLowerCase() === 'f') { //ctrl + 'f' -> search
-        event.preventDefault();
-        if (typeof window.toggleWebSearch === 'function') window.toggleWebSearch();
-        return;
-    }
-    
     if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'z') { //ctrl + shift + 'z' -> redo
         event.preventDefault();
         redo();
