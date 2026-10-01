@@ -126,8 +126,7 @@
     background: #525659; 
     padding: 10px;
     display: flex;
-    align-items: flex-start;
-    justify-content: center;
+    text-align: center;
 }
 
 #ref-canvas {

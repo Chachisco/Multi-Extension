@@ -424,16 +424,17 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
     const ctx = canvas.getContext('2d', { alpha: false });
     const container = previewEl.querySelector('.ref-body');
     
+    // NOVOS ELEMENTOS DA CAMADA DE LINKS
+    const wrapper = document.getElementById('ref-wrapper');
+    const linksLayerDiv = document.getElementById('ref-links-layer');
+    
     // Atualiza Estado
     window.currentPreviewPage = pageNum;
     if (refNameText !== null) window.currentPreviewName = refNameText;
-     if (destY !== undefined) window.currentPreviewY = destY;
+    if (destY !== undefined) window.currentPreviewY = destY;
     
     document.getElementById('ref-page-number').textContent = window.currentPreviewPage;
     document.getElementById('ref-zoom-display').textContent = `${Math.round(window.currentPreviewScale * 100)}%`;
-    
-    const cleanRef = window.currentPreviewName.trim();
-    // document.getElementById('ref-name').textContent = cleanRef ? ` ${cleanRef}` : '';
     
     previewEl.classList.remove('hidden');
 
@@ -447,27 +448,48 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
         canvas.style.width = `${Math.floor(viewport.width)}px`;
         canvas.style.height = `${Math.floor(viewport.height)}px`;
         
+        wrapper.style.width = canvas.style.width;
+        wrapper.style.height = canvas.style.height;
+
         await page.render({ 
             canvasContext: ctx, 
             viewport: viewport,
             transform: [dpr, 0, 0, dpr, 0, 0]
         }).promise;
         
+        linksLayerDiv.innerHTML = '';
+        try {
+            const annotationsData = await page.getAnnotations();
+            const annotationLayer = new pdfjsLib.AnnotationLayer({
+                viewport: viewport,
+                div: linksLayerDiv,
+                page: page,
+                linkService: linkService,
+                renderForms: false
+            });
+            await annotationLayer.render({
+                annotations: annotationsData,
+                downloadManager: null
+            });
+        } catch (err) {
+            console.warn("Aviso: Não foi possível renderizar os links no Preview:", err);
+        }
+
         if (refNameText !== null) container.scrollTop = 0;
 
-        if (destY !== null) {
+        if (destY !== null && destY !== undefined) {
             const pdfToHtmlY = viewport.height - (destY * window.currentPreviewScale);
             const centerOffset = container.clientHeight / 2;
             container.scrollTop = Math.max(0, pdfToHtmlY - centerOffset);
         } else if (refNameText !== null) {
             container.scrollTop = 0; 
         }
-
         
     } catch (err) {
         console.error("Erro ao gerar preview de referência:", err);
     }
 }
+
 
 window.flashHighlight = async function(pageNum, pdfX, pdfY, pdfW, isLinkTarget = false) {
     if (pdfY === null || pdfY === undefined) return;

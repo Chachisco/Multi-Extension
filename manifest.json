@@ -18,6 +18,9 @@
       "css": ["search/css/content.css"]
     }
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
   "commands": {
     "open-search": {
       "suggested_key": { "default": "Ctrl+F", "mac": "Command+F" },

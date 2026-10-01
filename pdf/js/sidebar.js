@@ -14,6 +14,8 @@ const tabFigures = document.getElementById('tab-figures');
 const viewOutline = document.getElementById('outline-view');
 const viewThumbnails = document.getElementById('thumbnails-view');
 const viewFigures = document.getElementById('figures-view');
+const tabRefs = document.getElementById('tab-refs');
+const viewRefs = document.getElementById('refs-view');
 const viewport = document.getElementById('viewport');
 
 // ==========================================
@@ -26,6 +28,7 @@ let globalFiguresData = [];
 let currentFiguresFilter = 'Tudo'; // 'Tudo' | 'Figura' | 'Tabela' | 'Equações' | 'Outros'
 let currentFiguresSort = 'Agrupado'; // 'Agrupado' | 'Texto'
 let currentFiguresSearch = '';
+let biblioLoaded = false;
 
 // ==========================================
 // 3. inicialização (arranque da sidebar)
@@ -49,6 +52,13 @@ function initSidebar() {
         tabFigures.onclick = () => {
             switchTab(tabFigures, viewFigures);
             if (!figuresLoaded) loadFiguresList();
+        };
+    }
+
+    if (tabRefs) {
+        tabRefs.onclick = () => {
+            switchTab(tabRefs, viewRefs);
+            loadBibliography();
         };
     }
 
@@ -93,8 +103,8 @@ function initSidebar() {
 // 4. funções gerais da ui
 // ==========================================
 function switchTab(activeTab, activeView) {
-    [tabOutline, tabThumbnails, tabFigures].forEach(t => { if(t) t.classList.remove('active'); });
-    [viewOutline, viewThumbnails, viewFigures].forEach(v => { if(v) v.classList.add('hidden'); });
+    [tabOutline, tabThumbnails, tabFigures, tabRefs].forEach(t => { if(t) t.classList.remove('active'); });
+    [viewOutline, viewThumbnails, viewFigures, viewRefs].forEach(v => { if(v) v.classList.add('hidden'); });
     
     activeTab.classList.add('active');
     activeView.classList.remove('hidden');
@@ -627,5 +637,170 @@ function renderFiguresList() {
         filteredData.forEach(fig => listContainer.appendChild(createRow(fig)));
     }
 }
+
+async function loadBibliography() {
+    if (!state.pdfDoc || biblioLoaded) return;
+    const listContainer = document.getElementById('refs-list');
+    if (!listContainer) return;
+    listContainer.innerHTML = '<div class="outline-item italic">A processar Referências e Coordenadas...</div>';
+
+    try {
+        const lastPages = Math.min(20, state.pdfDoc.numPages); // Analisa apenas as últimas 20 págs
+        let fullText = "";
+        let textMapping = []; 
+
+        // 1. Extrair texto e mapear coordenadas
+        for (let i = state.pdfDoc.numPages - lastPages + 1; i <= state.pdfDoc.numPages; i++) {
+            const page = await state.pdfDoc.getPage(i);
+            const textContent = await page.getTextContent();
+            
+            for (let item of textContent.items) {
+                if (item.str.trim() === '') {
+                    fullText += ' '; continue;
+                }
+                textMapping.push({
+                    index: fullText.length,
+                    pageNum: i,
+                    x: item.transform[4],
+                    y: item.transform[5],
+                    w: item.width || 50
+                });
+                fullText += item.str + ' ';
+            }
+            fullText += '\n\n'; // Força parágrafo entre páginas
+        }
+
+        // 2. Procurar TODAS as listas sequenciais no texto!
+        const potentialRefRegex = /(?:\[(\d+)\]|\b(\d+)\.\s)/g;
+        let match;
+        let sequences = [];
+        let currentSequence = [];
+        let expectedNum = 1;
+        let refStyle = null; // 1 para [1], 2 para 1.
+
+        while ((match = potentialRefRegex.exec(fullText)) !== null) {
+            const num = parseInt(match[1] || match[2], 10);
+            const isBracket = match[1] !== undefined;
+            const currentStyle = isBracket ? 1 : 2;
+
+            // Encontrou um 1? Inicia uma nova sequência candidata
+            if (num === 1) {
+                if (currentSequence.length > 0) sequences.push(currentSequence);
+                currentSequence = [{
+                    num: num, style: currentStyle, index: match.index, length: match[0].length,
+                    map: textMapping.slice().reverse().find(m => m.index <= match.index) || textMapping[0]
+                }];
+                expectedNum = 2;
+                refStyle = currentStyle;
+                continue;
+            }
+
+            // A continuação de uma sequência em andamento
+            if (currentSequence.length > 0) {
+                if (currentStyle !== refStyle) continue;
+                
+                if (num >= expectedNum && num <= expectedNum + 2) {
+                    currentSequence.push({
+                        num: num, style: currentStyle, index: match.index, length: match[0].length,
+                        map: textMapping.slice().reverse().find(m => m.index <= match.index) || textMapping[0]
+                    });
+                    expectedNum = num + 1;
+                }
+            }
+        }
+        if (currentSequence.length > 0) sequences.push(currentSequence);
+
+        // 3. A Bibliografia Real é assumida como sendo a sequência mais longa
+        sequences.sort((a, b) => b.length - a.length);
+        const bestSequence = sequences[0];
+
+        // Se a sequência mais longa tiver menos de 3 itens, não é uma bibliografia
+        if (!bestSequence || bestSequence.length < 3) {
+            listContainer.innerHTML = '<div class="outline-item italic">Nenhuma bibliografia reconhecível detetada.</div>';
+            return;
+        }
+
+        // 4. Extrair o texto entre os marcadores da sequência
+        const refs = [];
+        for (let i = 0; i < bestSequence.length; i++) {
+            const current = bestSequence[i];
+            const next = bestSequence[i + 1];
+
+            const startExtract = current.index + current.length;
+            const endExtract = next ? next.index : fullText.length;
+
+            let content = fullText.substring(startExtract, endExtract).trim();
+
+            // Proteção especial para a ÚLTIMA referência (para não engolir os Anexos/Supplementary Notes)
+            if (!next) {
+                const stopRegex = /\n\s*\n|\b(?:Acknowledgments|Appendix|Supplementary|Author contributions|Data availability)\b/i;
+                const stopMatch = stopRegex.exec(content);
+                if (stopMatch) {
+                    content = content.substring(0, stopMatch.index).trim();
+                }
+                if (content.length > 500) content = content.substring(0, 500) + '...'; // Limite de segurança
+            }
+
+            content = content.replace(/-\s*\n\s*/g, '').replace(/\s+/g, ' '); // Limpa formatação partida
+            if (content.length > 0) {
+                refs.push({ num: current.num, style: current.style, text: content, map: current.map });
+            }
+        }
+
+        // 5. Renderizar na Sidebar
+        listContainer.innerHTML = '';
+        refs.forEach(ref => {
+            const row = document.createElement('div');
+            row.className = 'outline-item';
+            row.style.whiteSpace = 'normal'; 
+            row.style.lineHeight = '1.4';
+            row.style.marginBottom = '8px';
+            row.style.borderBottom = '1px solid #333';
+            row.style.paddingBottom = '8px';
+            row.title = "Clica para ir à localização. Shift+Click para Preview.";
+
+            row.innerHTML = `<strong style="color:#0376db;">${ref.style === 1 ? '['+ref.num+']' : ref.num+'.'}</strong> <span style="color:#ddd; font-size: 12px;">${ref.text}</span>`;
+            
+            // Navegação e Preview!
+            row.onclick = async () => {
+                if (!ref.map) return;
+                
+                if (window.isShiftPressed && typeof window.showReferencePreview === 'function') {
+                    window.showReferencePreview(ref.map.pageNum, `Ref. ${ref.style === 1 ? '['+ref.num+']' : ref.num+'.'}`, ref.map.y);
+                } else {
+                    const wrapper = document.getElementById(`page-wrapper-${ref.map.pageNum}`);
+                    if (!wrapper) return;
+                    
+                    document.getElementById('page-input').value = ref.map.pageNum;
+                    const viewport = document.getElementById('viewport');
+                    
+                    const page = await state.pdfDoc.getPage(ref.map.pageNum);
+                    const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
+                    
+                    const pdfToHtmlY = vp.height - (ref.map.y * state.currentScale);
+                    const centerOffset = viewport.clientHeight / 2;
+                    const targetScrollTop = wrapper.offsetTop + pdfToHtmlY - centerOffset;
+
+                    viewport.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+
+                    // Dispara a caixa amarela intermitente
+                    if (typeof window.flashHighlight === 'function') {
+                        window.flashHighlight(ref.map.pageNum, ref.map.x, ref.map.y, ref.map.w * 3);
+                    }
+                }
+            };
+            
+            listContainer.appendChild(row);
+        });
+
+        biblioLoaded = true;
+
+    } catch (e) {
+        console.error("Erro na Bibliografia:", e);
+        listContainer.innerHTML = '<div class="outline-item italic">Erro ao processar documento.</div>';
+    }
+}
+
+
 
 initSidebar();

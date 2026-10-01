@@ -68,6 +68,7 @@ function toggleAnnotation() {
     deactivateAllTools();
     if (!wasActive) {
         state.annotationActive = true;
+        document.body.classList.add('cursor-pen');
         document.getElementById('btn-annotate').classList.add('tool-active');
         document.getElementById('annotation-options').classList.remove('hidden');
     }
@@ -78,10 +79,9 @@ function toggleFreehand() {
     deactivateAllTools();
     if (!wasActive) {
         state.freehandActive = true;
-        document.body.classList.add('cursor-pen'); // Muda o rato
-        document.getElementById('btn-draw').classList.add('tool-active'); // Fica amarelo
+        document.body.classList.add('cursor-pen');
+        document.getElementById('btn-draw').classList.add('tool-active');
         
-        // Esconde Highlight/Underline porque a caneta não usa isso
         document.querySelectorAll('.opt-mode, .opt-mode-divider').forEach(el => el.style.display = 'none');
         
         document.getElementById('annotation-options').classList.remove('hidden');

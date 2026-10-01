@@ -15,9 +15,10 @@
     <div id="notes-sidebar"></div>
     <div id="pdf-sidebar" class="pos-left closed">
         <div class="sidebar-tabs">
-            <button id="tab-outline" class="active">Índice</button>
-            <button id="tab-thumbnails">Páginas</button>
-            <button id="tab-figures">Figuras</button> 
+            <button id="tab-outline" class="active">Índ.</button>
+            <button id="tab-thumbnails">Págs.</button>
+            <button id="tab-figures">Figs.</button>
+            <button id="tab-refs">Biblio.</button>
             <button id="btn-sidebar-side" title="Mudar lado (M)">
                 <svg width="28" height="22" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 6H4" />
@@ -62,6 +63,7 @@
                 </div>
                 <div id="figures-list"></div>
             </div>
+            <div id="refs-view" class="hidden"><div id="refs-list"></div></div>
         </div>
     </div>
     <div id="reading-ruler"></div>
@@ -295,7 +297,10 @@
             </div>
         </div>
         <div class="ref-body">
-            <canvas id="ref-canvas"></canvas>
+            <div id="ref-wrapper" style="position: relative; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.3); text-align: left;">
+                <canvas id="ref-canvas" style="box-shadow: none;"></canvas>
+                <div id="ref-links-layer" class="pdf-links-layer"></div>
+            </div>
         </div>
     </div>
     <div id="jump-highlight" class="hidden"></div>

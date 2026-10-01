@@ -187,6 +187,27 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         document.addEventListener('mouseup', onMouseUp);
     };
 
+    editor.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+        
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+        
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        
+        const textNode = document.createTextNode(text);
+        range.insertNode(textNode);
+        
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        editor.dispatchEvent(new Event('input'));
+    });
+
     note.onclick = (e) => {
         if (hasDragged) return; 
         e.stopPropagation();
