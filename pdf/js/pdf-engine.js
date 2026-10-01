@@ -423,31 +423,30 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
     const canvas = document.getElementById('ref-canvas');
     const ctx = canvas.getContext('2d', { alpha: false });
     const container = previewEl.querySelector('.ref-body');
-    
-    // NOVOS ELEMENTOS DA CAMADA DE LINKS
+
     const wrapper = document.getElementById('ref-wrapper');
     const linksLayerDiv = document.getElementById('ref-links-layer');
-    
-    // Atualiza Estado
+    const textLayerDiv = document.getElementById('ref-text-layer');
+
     window.currentPreviewPage = pageNum;
     if (refNameText !== null) window.currentPreviewName = refNameText;
     if (destY !== undefined) window.currentPreviewY = destY;
-    
+
     document.getElementById('ref-page-number').textContent = window.currentPreviewPage;
     document.getElementById('ref-zoom-display').textContent = `${Math.round(window.currentPreviewScale * 100)}%`;
-    
+
     previewEl.classList.remove('hidden');
 
-    try {
+     try {
         const page = await state.pdfDoc.getPage(window.currentPreviewPage);
         const viewport = page.getViewport({ scale: window.currentPreviewScale, rotation: (page.rotate || 0) + state.pageRotation });
-        
+
         const dpr = window.devicePixelRatio || 1;
         canvas.width = Math.floor(viewport.width * dpr);
         canvas.height = Math.floor(viewport.height * dpr);
         canvas.style.width = `${Math.floor(viewport.width)}px`;
         canvas.style.height = `${Math.floor(viewport.height)}px`;
-        
+
         wrapper.style.width = canvas.style.width;
         wrapper.style.height = canvas.style.height;
 
@@ -456,7 +455,28 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
             viewport: viewport,
             transform: [dpr, 0, 0, dpr, 0, 0]
         }).promise;
+
+        // Renderizar a Camada de Texto
+        textLayerDiv.innerHTML = '';
+        textLayerDiv.style.setProperty('--total-scale-factor', window.currentPreviewScale);
+        textLayerDiv.style.setProperty('--min-font-size', '1');
+        textLayerDiv.style.setProperty('--min-font-size-inv', '1');
         
+        try {
+            const textLayer = new pdfjsLib.TextLayer({
+                textContentSource: page.streamTextContent({
+                    includeMarkedContent: true,
+                    disableNormalization: true
+                }),
+                container: textLayerDiv,
+                viewport: viewport
+            });
+            await textLayer.render();
+        } catch (err) {
+            console.warn("Aviso: Não foi possível renderizar texto no Preview:", err);
+        }
+
+        // Renderizar a Camada de Links
         linksLayerDiv.innerHTML = '';
         try {
             const annotationsData = await page.getAnnotations();
@@ -464,8 +484,8 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
                 viewport: viewport,
                 div: linksLayerDiv,
                 page: page,
-                linkService: linkService,
-                renderForms: false
+                linkService: linkService, 
+                renderForms: false 
             });
             await annotationLayer.render({
                 annotations: annotationsData,
