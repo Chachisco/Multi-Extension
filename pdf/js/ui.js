@@ -212,14 +212,7 @@ export function setupUI() {
         let val = parseInt(pageInput.value, 10);
         if (isNaN(val) || val < 1) val = 1;
         if (state.pdfDoc && val > state.pdfDoc.numPages) val = state.pdfDoc.numPages;
-        pageInput.value = val;
-
-        const wrapper = document.getElementById(`page-wrapper-${val}`);
-        const viewport = document.getElementById('viewport');
-        if (wrapper && viewport) {
-            const y = wrapper.offsetTop - 60;
-            viewport.scrollTo({ top: y, behavior: 'smooth' });
-        }
+        jumpTo(val, { align: 'top' });
     };
     const btnMerge = document.getElementById('btn-merge-pdf');
     const mergeInput = document.getElementById('merge-file-input');
@@ -606,11 +599,7 @@ function handleKeydown(event) {
             document.getElementById('viewport').scrollBy({ top: getFocusLineHeight(ruler), behavior: 'smooth' });
         } else {
             const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
-            const wrapper = document.getElementById(`page-wrapper-${next}`);
-            if (wrapper) { 
-                pageInput.value = next; 
-                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 5, behavior: 'smooth' });
-            }
+            jumpTo(next, { align: 'top' });
         }
     }
 
@@ -621,11 +610,7 @@ function handleKeydown(event) {
             document.getElementById('viewport').scrollBy({ top: -getFocusLineHeight(ruler), behavior: 'smooth' });
         } else {
             const prev = Math.max(1, currentPage - 1);
-            const wrapper = document.getElementById(`page-wrapper-${prev}`);
-            if (wrapper) { 
-                pageInput.value = prev; 
-                document.getElementById('viewport').scrollTo({ top: wrapper.offsetTop - 5, behavior: 'smooth' });
-            }
+            jumpTo(next, { align: 'top' });
         }
     }
     if (event.key === 'ArrowRight' && !event.altKey){
@@ -643,13 +628,7 @@ function handleKeydown(event) {
         }
         else {
             const next = Math.min(currentPage + 1, state.pdfDoc ? state.pdfDoc.numPages : currentPage + 1);
-            const wrapper = document.getElementById(`page-wrapper-${next}`);
-            const viewport = document.getElementById('viewport');
-            
-            if (wrapper && viewport) {
-                pageInput.value = next;
-                viewport.scrollTo({ top: wrapper.offsetTop - 5, behavior: 'smooth' }); 
-            }
+            jumpTo(next, { align: 'top' });
         }
     }
     if (event.key === 'ArrowLeft' && !event.altKey){
@@ -667,13 +646,7 @@ function handleKeydown(event) {
             }
         } else {
             const prev = Math.max(1, currentPage - 1);
-            const wrapper = document.getElementById(`page-wrapper-${prev}`);
-            const viewport = document.getElementById('viewport');
-            
-            if (wrapper && viewport) {
-                pageInput.value = prev;
-                viewport.scrollTo({ top: wrapper.offsetTop - 5, behavior: 'smooth' });
-            }
+            jumpTo(prev, { align: 'top' });
         }
     }
 }

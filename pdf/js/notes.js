@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { record } from './history.js';
+import { jumpTo } from './utils.js';
 
 export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLocked = false, isExportable = true) {
     if (!overlay) return;
@@ -340,10 +341,7 @@ export function updateNotesSidebar() {
                     marker.title = `Página ${pageNum}:\n"${note.text ? note.text.substring(0, 30) + '...' : 'Nota vazia'}"`;
 
                     marker.onclick = () => {
-                        const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
-                        if (wrapper) {
-                            wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
+                        jumpTo(pageNum, { htmlY: note.y, align: 'center' });
                     };
                     sidebar.appendChild(marker);
                 });

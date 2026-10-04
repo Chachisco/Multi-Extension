@@ -8,6 +8,7 @@ import { initDrawingLayer, resizeDrawingCanvas, loadDrawingsForPage } from './dr
 import { TextLayerBuilder } from './text-layer-builder.js';
 import { deleteSinglePage, rotateSinglePage } from './pdf_editor.js';
 import { loadTextBoxesForPage } from './textboxes.js';
+import { jumpTo } from './utils.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf_js/build/pdf.worker.mjs';
 
@@ -49,35 +50,11 @@ const linkService = {
                         }
                     }
                 }
-
                 if (window.isShiftPressed) {
                     showReferencePreview(targetPage, window.lastClickedLinkText, destY);
                     return;
                 }
-
-                const wrapper = document.getElementById(`page-wrapper-${targetPage}`);
-                if (wrapper) {
-                    const viewport = document.getElementById('viewport');
-                    document.getElementById('page-input').value = targetPage;
-                    
-                    let targetScrollTop = wrapper.offsetTop - 42;
-                    
-                    if (destY !== null) {
-                        const page = await state.pdfDoc.getPage(targetPage);
-                        const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
-                        
-                        const pdfToHtmlY = vp.height - (destY * state.currentScale);
-                        const centerOffset = viewport.clientHeight / 2;
-                        targetScrollTop = wrapper.offsetTop + pdfToHtmlY - centerOffset;
-                    }
-
-                    viewport.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' }); 
-                    setTimeout(() => {
-                        if (typeof window.flashHighlight === 'function') {
-                            window.flashHighlight(targetPage, destX, destY, null, true);
-                        }
-                    }, 100);
-                }
+                jumpTo(targetPage, {pdfY: destY, align: 'top', flashX: destX});
             } catch (e) {
                 console.warn("Erro ao navegar para o link interno:", e);
             }

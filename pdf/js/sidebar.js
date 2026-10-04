@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { reorderPDFPages, deleteSinglePage, rotateSinglePage } from './pdf_editor.js';
+import { jumpTo } from './utils.js'
 
 // ==========================================
 // 1. elementos dom
@@ -219,7 +220,7 @@ async function loadOutline() {
                 row.onclick = async () => {
                     try {
                         const pageNum = await getOutlinePageNumber(item);
-                        if (pageNum) scrollToPage(pageNum);
+                        if (pageNum) jumpTo(pageNum, { align: 'top' });
                     } catch (error) { console.error(error); }
                 };
 
@@ -316,7 +317,7 @@ async function renderThumbnails() {
             if (window.isShiftPressed && typeof window.showReferencePreview === 'function') {
                 window.showReferencePreview(i, `Pág. ${i}`);
             } else {
-                scrollToPage(i);
+                jumpTo(i, { align: 'top' });
                 document.querySelectorAll('.thumbnail-wrapper').forEach(w => w.classList.remove('active'));
                 thumbWrapper.classList.add('active');
             }
@@ -586,27 +587,7 @@ function renderFiguresList() {
             if (window.isShiftPressed && typeof window.showReferencePreview === 'function') {
                 window.showReferencePreview(fig.pageNum, fig.matchText, fig.destY);
             } else {
-                const wrapper = document.getElementById(`page-wrapper-${fig.pageNum}`);
-                if (!wrapper) return;
-                
-                document.getElementById('page-input').value = fig.pageNum;
-                const viewport = document.getElementById('viewport');
-                let targetScrollTop = wrapper.offsetTop - 42; 
-
-                if (fig.destY !== null) {
-                    const page = await state.pdfDoc.getPage(fig.pageNum);
-                    const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
-                    
-                    const pdfToHtmlY = vp.height - (fig.destY * state.currentScale);
-                    const centerOffset = viewport.clientHeight / 2;
-                    targetScrollTop = wrapper.offsetTop + pdfToHtmlY - centerOffset;
-                }
-
-                viewport.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
-
-                if (typeof window.flashHighlight === 'function') {
-                    window.flashHighlight(fig.pageNum, fig.destX, fig.destY, fig.destW);
-                }
+                jumpTo(fig.pageNum, {pdfY: fig.destY, align: 'center', flashX: fig.destX, flashW: fig.destW});
             }
         };
         return row;
@@ -761,32 +742,13 @@ async function loadBibliography() {
 
             row.innerHTML = `<strong style="color:#0376db;">${ref.style === 1 ? '['+ref.num+']' : ref.num+'.'}</strong> <span style="color:#ddd; font-size: 12px;">${ref.text}</span>`;
             
-            // Navegação e Preview!
             row.onclick = async () => {
                 if (!ref.map) return;
                 
                 if (window.isShiftPressed && typeof window.showReferencePreview === 'function') {
                     window.showReferencePreview(ref.map.pageNum, `Ref. ${ref.style === 1 ? '['+ref.num+']' : ref.num+'.'}`, ref.map.y);
                 } else {
-                    const wrapper = document.getElementById(`page-wrapper-${ref.map.pageNum}`);
-                    if (!wrapper) return;
-                    
-                    document.getElementById('page-input').value = ref.map.pageNum;
-                    const viewport = document.getElementById('viewport');
-                    
-                    const page = await state.pdfDoc.getPage(ref.map.pageNum);
-                    const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
-                    
-                    const pdfToHtmlY = vp.height - (ref.map.y * state.currentScale);
-                    const centerOffset = viewport.clientHeight / 2;
-                    const targetScrollTop = wrapper.offsetTop + pdfToHtmlY - centerOffset;
-
-                    viewport.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
-
-                    // Dispara a caixa amarela intermitente
-                    if (typeof window.flashHighlight === 'function') {
-                        window.flashHighlight(ref.map.pageNum, ref.map.x, ref.map.y, ref.map.w * 3);
-                    }
+                    jumpTo(ref.map.pageNum, { pdfY: ref.map.y, align: 'center', flashX: ref.map.x, flashW: ref.map.w * 3});
                 }
             };
             
