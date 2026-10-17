@@ -403,6 +403,45 @@ export function setupUI() {
     });
 
     // ==========================================
+    // IMPRIMIR DOCUMENTO
+    // ==========================================
+    const btnPrint = document.getElementById('btn-print');
+    if (btnPrint) {
+        btnPrint.onclick = async () => {
+            if (!state.pdfBytes) return;
+            
+            showNotification("A preparar documento para impressão...", "info");
+            
+            try {
+                let dataToPrint;
+                if (state.pdfDoc.annotationStorage.size > 0) {
+                    dataToPrint = await state.pdfDoc.saveDocument();
+                } else {
+                    dataToPrint = await state.pdfDoc.getData();
+                }
+
+                const blob = new Blob([dataToPrint], { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const printIframe = document.getElementById('print-iframe');
+                
+                printIframe.onload = null;
+                
+                printIframe.onload = () => {
+                    printIframe.contentWindow.print();
+                    
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                };
+                printIframe.src = blobUrl;
+
+            } catch (err) {
+                console.error("Erro ao imprimir:", err);
+                showNotification("Falha ao abrir a caixa de impressão.", "error");
+            }
+        };
+    }
+
+    // ==========================================
     // Preview de burn-in
     // ==========================================
     const modalPreview = document.getElementById('modal-preview');
@@ -653,6 +692,13 @@ function handleKeydown(event) {
     if (event.ctrlKey && event.key.toLowerCase() === 'y') { //ctrl + 'y' -> redo
         event.preventDefault();
         redo();
+        return;
+    }
+
+    if (event.ctrlKey && event.key.toLowerCase() === 'p') { //ctrl + 'p' -> print
+        event.preventDefault();
+        const btnPrint = document.getElementById('btn-print');
+        if (btnPrint) btnPrint.click();
         return;
     }
 
