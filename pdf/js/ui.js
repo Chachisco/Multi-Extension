@@ -7,6 +7,7 @@ import { setupDrawingTools } from './drawing.js';
 import { applyAnnotation } from './annotations.js';
 import { setupTextBoxes, createTextBox, activeTextBox, saveTextBoxesForPage } from './textboxes.js';
 import { updateZoom, fitWidth, fitHeight, rotatePages } from './pdf-engine.js';
+import { jumpTo } from './utils.js'
 import * as PDFLib from '../lib/pdf_lib/pdf-lib.min.js';
 const { PDFDocument, rgb, PDFName, PDFString, PDFHexString } = window.PDFLib || PDFLib;
 
@@ -16,15 +17,71 @@ const pageInput = document.getElementById('page-input');
 const container = document.getElementById('pages-container');
 let wheelZoomTimer = null;
 let pendingWheelScale = null;
+let pendingWheelAnchor = null;
+const logHistory = [];
 
-function queueWheelZoom(delta) {
+function getWheelZoomAnchor(event) {
+    const page = event.target.closest?.('.page-wrapper');
+    const rect = page?.getBoundingClientRect();
+    if (!page || !rect || event.clientX < rect.left || event.clientX > rect.right ||
+        event.clientY < rect.top || event.clientY > rect.bottom) return null;
+
+    return {
+        pageNum: page.dataset.pageNumber,
+        xRatio: (event.clientX - rect.left) / rect.width,
+        yRatio: (event.clientY - rect.top) / rect.height,
+        clientX: event.clientX,
+        clientY: event.clientY
+    };
+}
+
+function queueWheelZoom(delta, anchor) {
     pendingWheelScale = (pendingWheelScale ?? state.currentScale) + delta;
+    pendingWheelAnchor = anchor;
     clearTimeout(wheelZoomTimer);
     wheelZoomTimer = setTimeout(() => {
         const nextScale = pendingWheelScale;
+        const anchor = pendingWheelAnchor;
         pendingWheelScale = null;
-        updateZoom(nextScale);
+        pendingWheelAnchor = null;
+        updateZoom(nextScale, anchor);
     }, 40);
+}
+
+export function askUserInput(title, defaultValue = '', showTypeSelect = false) {
+    return new Promise(resolve => {
+        const modal = document.getElementById('modal-input');
+        const titleEl = document.getElementById('modal-input-title');
+        const inputEl = document.getElementById('modal-input-text');
+        const selectEl = document.getElementById('modal-input-type');
+        const btnOk = document.getElementById('btn-input-confirm');
+        const btnCancel = document.getElementById('btn-input-cancel');
+
+        titleEl.textContent = title;
+        inputEl.value = defaultValue;
+        selectEl.classList.toggle('hidden', !showTypeSelect);
+        
+        modal.classList.remove('hidden');
+        inputEl.focus();
+        inputEl.select();
+
+        const cleanup = () => {
+            modal.classList.add('hidden');
+            btnOk.onclick = null;
+            btnCancel.onclick = null;
+            inputEl.onkeydown = null;
+        };
+
+        btnOk.onclick = () => {
+            cleanup();
+            resolve({ text: inputEl.value.trim(), type: selectEl.value });
+        };
+        btnCancel.onclick = () => { cleanup(); resolve(null); };
+        inputEl.onkeydown = (e) => {
+            if (e.key === 'Enter') btnOk.click();
+            if (e.key === 'Escape') btnCancel.click();
+        };
+    });
 }
 
 export function setHeaderMode(mode) {
@@ -293,7 +350,7 @@ export function setupUI() {
         btnAddNote.onclick = () => {
             const currentPg = parseInt(pageInput.value, 10);
             const overlay = document.querySelector(`#page-wrapper-${currentPg} .notes-overlay`);
-            if (overlay) addNoteToUI(overlay, currentPg, 50, 10, '', false);
+            if (overlay) addNoteToUI(overlay, currentPg, '', 50, 10, false);
         };
     }
 
@@ -301,7 +358,10 @@ export function setupUI() {
     if (btnFullscreen) {
         btnFullscreen.onclick = () => {
             if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => console.log(`Erro Fullscreen: ${err.message}`));
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error("Erro ao ativar ecrã inteiro:", err);
+                    showNotification(`Não foi possível ativar o ecrã inteiro: ${err.message}`, 'error');
+                });
             } else {
                 document.exitFullscreen();
             }
@@ -363,10 +423,20 @@ export function setupUI() {
 
     if (btnPreviewConfirm) {
         btnPreviewConfirm.onclick = async () => {
+            if (state.isSigned) {
+                const proceed = confirm("⚠️ Este documento tem uma Assinatura Digital.\n\nAplicar o Burn-in irá alterar o código fonte do PDF e invalidar a assinatura.\nTens a certeza que queres aplicar as notas de forma permanente?");
+                if (!proceed) {
+                    modalPreview.classList.add('hidden');
+                    return;
+                }
+            }
+            
             modalPreview.classList.add('hidden');
+            showNotification("A gerar PDF embebido (Burn-in)...", "info");
+            
             if (window.pendingBurnInBlob) {
-                const finalChosenName = await triggerExtensionDownload(window.pendingBurnInBlob, window.pendingBurnInName, true);
-                
+                const buffer = await window.pendingBurnInBlob.arrayBuffer();
+                const finalChosenName = await saveToFileSystem(buffer, true, 'BurnIn');
                 if (finalChosenName) {
                     await syncStorageToNewFile(state.currentFilename, finalChosenName, false);
                 }
@@ -451,6 +521,30 @@ export function setupUI() {
         });
     }
 
+    const btnLog = document.getElementById('btn-log-history');
+    const logPanel = document.getElementById('log-history-panel');
+    const btnCloseLogs = document.getElementById('btn-close-logs');
+    const filterLogs = document.getElementById('log-filter-current');
+
+    if (btnLog && logPanel) {
+        btnLog.onclick = () => {
+            const isHidden = logPanel.classList.toggle('hidden');
+            btnLog.classList.toggle('active', !isHidden);
+
+            if (!isHidden && typeof renderLogs === 'function') {
+                renderLogs();
+            }
+        };
+        btnCloseLogs.onclick = () => {
+            logPanel.classList.add('hidden');
+            btnLog.classList.remove('active');
+        };
+        if (filterLogs) filterLogs.onchange = () => {
+             if (typeof renderLogs === 'function') renderLogs();
+        };
+    }
+
+
     setupGlobalEvents();
 } 
 
@@ -491,7 +585,7 @@ function setupGlobalEvents() {
     window.addEventListener('wheel', event => {
         if (event.ctrlKey) {
             event.preventDefault();
-            queueWheelZoom(event.deltaY > 0 ? -0.1 : 0.1);
+            queueWheelZoom(event.deltaY > 0 ? -0.1 : 0.1, getWheelZoomAnchor(event));
             return;
         }
 
@@ -517,7 +611,7 @@ function setupGlobalEvents() {
         }
     }, { passive: false });
 
-    header.addEventListener('wheel', event => { // when the header is too big to big to fit, it can be scrolled
+    header.addEventListener('wheel', event => { // when the header is too big to fit, it can be scrolled
         if (event.ctrlKey) return;
         event.preventDefault();
         header.scrollLeft += event.deltaX + event.deltaY
@@ -742,6 +836,7 @@ function triggerExtensionDownload(blob, suggestedFilename, useSaveAs) {
         }, (downloadId) => {
             if (chrome.runtime.lastError || !downloadId) {
                 console.error("Download cancelado/com erro:", chrome.runtime.lastError.message);
+                showNotification("O download foi cancelado ou falhou.", 'warning');
                 URL.revokeObjectURL(url);
                 resolve(null);
                 return;
@@ -793,15 +888,20 @@ async function syncStorageToNewFile(oldFilename, newFilename, copyNotesOver) {
 
     chrome.storage.local.remove(keysToRemove, () => {
         if (Object.keys(newStorage).length > 0) {
-            chrome.storage.local.set(newStorage, () => console.log(`Storage sincronizado para: ${newFilename}`));
+            chrome.storage.local.set(newStorage, () => showNotification(`Dados sincronizados para ${newFilename}.`, 'success'));
         } else {
-            console.log(`Storage limpo com sucesso para: ${newFilename}`);
+            showNotification(`Dados anteriores limpos para ${newFilename}.`, 'info');
         }
     });
 }
 
 export async function downloadNormal(requestSaveAs = false) {
     if (!state.pdfDoc) return;
+
+    if (state.isSigned) {
+        const proceed = confirm("⚠️ Este documento tem uma Assinatura Digital.\n\nGuardar as alterações irá corromper e invalidar a assinatura original.\nTens a certeza que queres guardar por cima?");
+        if (!proceed) return;
+    }
     
     const data = state.pdfDoc.annotationStorage.size > 0 
         ? await state.pdfDoc.saveDocument() 
@@ -1034,13 +1134,19 @@ export async function downloadBurnIn() {
 
     } catch (e) {
         console.error("Erro ao gerar PDF com notas:", e);
-        alert("Ocorreu um erro ao exportar as notas.");
+        showNotification(`Ocorreu um erro ao exportar as notas: ${e.message || e}`, 'error');
     }
 }
 
 
 export async function downloadWithNotes() {
     if (!state.pdfBytes) return;
+
+    if (state.isSigned) {
+        const proceed = confirm("⚠️ Este documento tem uma Assinatura Digital.\n\nCriar uma nova versão deste ficheiro não transferirá a validade da assinatura.\nQueres continuar?");
+        if (!proceed) return;
+    }
+
     const data = await state.pdfDoc.saveDocument();
     const blob = new Blob([data], { type: 'application/pdf' });
     const safeName = document.title !== 'UniPDF Pro' ? `Exportado_${document.title}` : 'Exportado_document.pdf';
@@ -1049,5 +1155,99 @@ export async function downloadWithNotes() {
     
     if (finalChosenName) {
         await syncStorageToNewFile(state.currentFilename, finalChosenName, true);
+    }
+}
+
+export function showNotification(message, type = 'info') {
+    const normalizedType = type === 'warn' ? 'warning' : type;
+    const consoleContainer = document.getElementById('cmd-console');
+    if (consoleContainer) {
+        const msgBox = document.createElement('div');
+        msgBox.className = `cmd-msg ${normalizedType}`;
+        let prefix = '[INFO] ';
+        if (normalizedType === 'error') prefix = '[ERRO] ';
+        if (normalizedType === 'warning') prefix = '[AVISO] ';
+        if (normalizedType === 'success') prefix = '[OK] ';
+
+        msgBox.innerText = `${prefix}${message}`;
+        consoleContainer.appendChild(msgBox);
+
+        setTimeout(() => {
+            msgBox.classList.add('fade-out');
+            setTimeout(() => msgBox.remove(), 300);
+        }, 4000);
+    }
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const currentFile = state.originalFilename || 'Desconhecido';
+    
+    logHistory.push({ time: timeStr, type: normalizedType, message, file: currentFile });
+    renderLogs();
+}
+
+function renderLogs() {
+    const container = document.getElementById('log-content');
+    if (!container) return;
+    
+    const filterCurrent = document.getElementById('log-filter-current')?.checked;
+    const activeFile = state.originalFilename || 'Desconhecido';
+    
+    container.innerHTML = '';
+    let count = 0;
+    
+    logHistory.forEach(log => {
+        if (filterCurrent && log.file !== activeFile) return;
+        const div = document.createElement('div');
+        div.className = `log-item ${log.type}`;
+        const time = document.createElement('span');
+        time.className = 'time';
+        time.textContent = `[${log.time}]`;
+        const file = document.createElement('span');
+        file.className = 'file';
+        file.title = log.file;
+        file.textContent = `(${log.file.length > 25 ? log.file.substring(0, 22) + '...' : log.file})`;
+        div.append(time, document.createTextNode(' '), file, document.createTextNode(` ${log.message}`));
+        container.appendChild(div);
+        count++;
+    });
+
+    if (count === 0) container.innerHTML = '<div style="color: #666; text-align: center; margin-top: 20px; font-style: italic;">Nenhum registo disponível.</div>';
+    else container.scrollTop = container.scrollHeight;
+}
+
+async function saveToFileSystem(data, requestSaveAs, prefix = '') {
+    try {
+        let handle = state.fileHandle;
+        let defaultName = state.originalFilename || 'documento.pdf';
+        
+        if (prefix) defaultName = `${prefix}_${defaultName}`;
+
+        if (requestSaveAs || !handle) {
+            handle = await window.showSaveFilePicker({
+                suggestedName: defaultName,
+                types: [{ description: 'Documento PDF', accept: { 'application/pdf': ['.pdf'] } }]
+            });
+            
+            if (!prefix) {
+                state.fileHandle = handle;
+                state.originalFilename = handle.name;
+                document.title = handle.name;
+            }
+        }
+
+        const writable = await handle.createWritable();
+        await writable.write(data);
+        await writable.close();
+
+        // O NOVO FEEDBACK VISUAL!
+        showNotification(`Ficheiro gravado: ${handle.name}`, 'success');
+        
+        return handle.name;
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            showNotification("Falha ao gravar o ficheiro no disco.", "error");
+        }
+        return null;
     }
 }

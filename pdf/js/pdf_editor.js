@@ -1,6 +1,7 @@
 import * as PDFLib from '../lib/pdf_lib/pdf-lib.min.js';
 import { loadPDF } from './pdf-engine.js';
 import { state } from './state.js';
+import { showNotification } from './ui.js';
 
 const { PDFDocument, degrees } = window.PDFLib || PDFLib;
 
@@ -82,6 +83,9 @@ async function syncStorageAfterEdit(action, p1, p2, keepNotes = false) {
 // ==========================================
 export async function deleteSinglePage(pageNum, keepNotes) {
     try {
+        if (state.isSigned) {
+            showNotification("PDF com assinatura detetada. Guardar estas alterações irá corrompê-la", "warning");
+        }
         const bytes = await getCurrentPdfBytes();
         const pdfDoc = await PDFDocument.load(bytes);
         pdfDoc.removePage(pageNum - 1);
@@ -90,11 +94,17 @@ export async function deleteSinglePage(pageNum, keepNotes) {
         
         const modifiedBytes = await pdfDoc.save();
         reloadViewerWithNewBytes(modifiedBytes, Math.max(1, pageNum - 1));
-    } catch (e) { console.error("Erro ao apagar:", e); }
+    } catch (e) {
+        console.error("Erro ao apagar:", e);
+        showNotification(`Não foi possível apagar a página: ${e.message || e}`, 'error');
+    }
 }
 
 export async function rotateSinglePage(pageNum, angleDelta) {
     try {
+        if (state.isSigned) {
+            showNotification("PDF com assinatura detetada. Guardar estas alterações irá corrompê-la", "warning");
+        }
         const bytes = await getCurrentPdfBytes();
         const pdfDoc = await PDFDocument.load(bytes);
         const page = pdfDoc.getPage(pageNum - 1);
@@ -103,11 +113,17 @@ export async function rotateSinglePage(pageNum, angleDelta) {
         
         const modifiedBytes = await pdfDoc.save();
         reloadViewerWithNewBytes(modifiedBytes, pageNum);
-    } catch (e) { console.error("Erro ao rodar:", e); }
+    } catch (e) {
+        console.error("Erro ao rodar:", e);
+        showNotification(`Não foi possível rodar a página: ${e.message || e}`, 'error');
+    }
 }
 
 export async function reorderPDFPages(fromPage, toPage) {
     try {
+        if (state.isSigned) {
+            showNotification("PDF com assinatura detetada. Guardar estas alterações irá corrompê-la", "warning");
+        }
         const bytes = await getCurrentPdfBytes();
         const pdfDoc = await PDFDocument.load(bytes);
         
@@ -127,7 +143,10 @@ export async function reorderPDFPages(fromPage, toPage) {
 
         const modifiedBytes = await newPdf.save();
         reloadViewerWithNewBytes(modifiedBytes, toPage);
-    } catch (e) { console.error("Erro ao reordenar:", e); }
+    } catch (e) {
+        console.error("Erro ao reordenar:", e);
+        showNotification(`Não foi possível reordenar as páginas: ${e.message || e}`, 'error');
+    }
 }
 
 async function reloadViewerWithNewBytes(bytes, targetPage = null) {
@@ -182,6 +201,6 @@ export async function mergePDFs(newPdfBytes, insertAtPage) {
         
     } catch (e) {
         console.error("Erro ao juntar PDFs:", e);
-        alert("Ocorreu um erro ao tentar juntar os documentos. Tenta novamente.");
+        showNotification(`Ocorreu um erro ao juntar os PDFs: ${e.message || e}`, 'error');
     }
 }

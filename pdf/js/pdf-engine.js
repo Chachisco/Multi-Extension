@@ -8,7 +8,9 @@ import { initDrawingLayer, resizeDrawingCanvas, loadDrawingsForPage } from './dr
 import { TextLayerBuilder } from './text-layer-builder.js';
 import { deleteSinglePage, rotateSinglePage } from './pdf_editor.js';
 import { loadTextBoxesForPage } from './textboxes.js';
+import { loadBookmarksForPage } from './bookmarks.js';
 import { jumpTo } from './utils.js';
+import { showNotification } from './ui.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf_js/build/pdf.worker.mjs';
 
@@ -54,9 +56,10 @@ const linkService = {
                     showReferencePreview(targetPage, window.lastClickedLinkText, destY);
                     return;
                 }
-                jumpTo(targetPage, {pdfY: destY, align: 'top', flashX: destX});
+                jumpTo(targetPage, {pdfY: destY, align: 'top', flashX: destX, origin: 'top'});
             } catch (e) {
                 console.warn("Erro ao navegar para o link interno:", e);
+                showNotification(`Não foi possível abrir o destino do link: ${e.message || e}`, 'warning');
             }
         }
     },
@@ -153,6 +156,7 @@ export async function loadPDF(source, filename) {
             <div class="textboxes-overlay"></div>
             <div class="textLayer"></div>
             <div class="notes-overlay"></div>
+            <div class="bookmarks-overlay"></div>
         `;
         container.appendChild(wrapper);
         initDrawingLayer(wrapper, pageNum);
@@ -216,8 +220,9 @@ export async function renderPage(pageNum) {
     if (!wrapper || state.renderingStates[pageNum]) return;
     if (wrapper.dataset.rendered === 'true' && Number(wrapper.dataset.scale) === state.currentScale) {
         loadNotesForPage(pageNum);
+        loadBookmarksForPage(pageNum);
         loadAnnotationsForPage(pageNum);
-        loadTextBoxesForPage(pageNum)
+        loadTextBoxesForPage(pageNum);
         return;
     }
     state.renderingStates[pageNum] = true;
@@ -257,6 +262,7 @@ export async function renderPage(pageNum) {
         wrapper.dataset.rendered = 'true';
         wrapper.dataset.scale = state.currentScale;
         loadNotesForPage(pageNum);
+        loadBookmarksForPage(pageNum);
         loadAnnotationsForPage(pageNum);
 
         linksLayerDiv.innerHTML = ''; // Limpa links antigos
@@ -277,9 +283,13 @@ export async function renderPage(pageNum) {
             });
         } catch (linkError) {
             console.warn("Erro ao renderizar links nativos:", linkError);
+            showNotification("Não foi possível apresentar alguns links deste PDF.", 'warning');
         }
     } catch (error) {
-        if (error.name !== 'RenderingCancelledException') console.error(error);
+        if (error.name !== 'RenderingCancelledException') {
+            console.error(error);
+            showNotification(`Erro ao renderizar a página ${pageNum}: ${error.message || error}`, 'error');
+        }
     } finally {
         state.renderingStates[pageNum] = false;
         state.renderTasks[pageNum] = null;
@@ -339,20 +349,36 @@ function getScrollAnchor() {
     const wrapper = [...wrappers].find(page => page.offsetTop + page.offsetHeight > scrollTop);
     return {
         wrapper,
-        offset: wrapper ? scrollTop - wrapper.offsetTop : 0
+        offset: wrapper ? scrollTop - wrapper.offsetTop : 0,
+        left: viewport.scrollLeft
     };
 }
 
 function restoreScrollAnchor(anchor) {
     if (anchor.wrapper) {
         viewport.scrollTo({
+            left: anchor.left,
             top: anchor.wrapper.offsetTop + anchor.offset,
             behavior: 'auto'
         });
     }
 }
 
-export async function updateZoom(newScale) {
+function restoreZoomAnchor(anchor) {
+    if (!anchor) return false;
+    const wrapper = document.getElementById(`page-wrapper-${anchor.pageNum}`);
+    if (!wrapper) return false;
+
+    const rect = wrapper.getBoundingClientRect();
+    viewport.scrollTo({
+        left: viewport.scrollLeft + rect.left + rect.width * anchor.xRatio - anchor.clientX,
+        top: viewport.scrollTop + rect.top + rect.height * anchor.yRatio - anchor.clientY,
+        behavior: 'auto'
+    });
+    return true;
+}
+
+export async function updateZoom(newScale, zoomAnchor = null) {
     const requestId = ++zoomRequestId;
     const scrollAnchor = getScrollAnchor();
 
@@ -364,7 +390,7 @@ export async function updateZoom(newScale) {
         Object.values(state.renderTasks).forEach(task => task?.cancel());
         pageCache.forEach((page, pageNum) => updatePageGeometry(page, pageNum));
         if (requestId !== zoomRequestId) return;
-        restoreScrollAnchor(scrollAnchor);
+        if (!restoreZoomAnchor(zoomAnchor)) restoreScrollAnchor(scrollAnchor);
     }
     
     renderVisiblePages();
@@ -451,6 +477,7 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
             await textLayer.render();
         } catch (err) {
             console.warn("Aviso: Não foi possível renderizar texto no Preview:", err);
+            showNotification("Não foi possível renderizar o texto na pré-visualização.", 'warning');
         }
 
         // Renderizar a Camada de Links
@@ -470,6 +497,7 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
             });
         } catch (err) {
             console.warn("Aviso: Não foi possível renderizar os links no Preview:", err);
+            showNotification("Não foi possível renderizar os links na pré-visualização.", 'warning');
         }
 
         if (refNameText !== null) container.scrollTop = 0;
@@ -484,58 +512,6 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
         
     } catch (err) {
         console.error("Erro ao gerar preview de referência:", err);
+        showNotification(`Erro ao gerar a pré-visualização: ${err.message || err}`, 'error');
     }
 }
-
-
-window.flashHighlight = async function(pageNum, pdfX, pdfY, pdfW, isLinkTarget = false) {
-    if (pdfY === null || pdfY === undefined) return;
-    
-    const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
-    if (!wrapper) return;
-
-    const page = await state.pdfDoc.getPage(pageNum);
-    const vp = page.getViewport({ scale: state.currentScale, rotation: (page.rotate || 0) + state.pageRotation });
-
-    const safeX = (pdfX !== null && pdfX !== undefined) ? pdfX : 30; 
-    
-    const safeW = (pdfW !== null && pdfW !== undefined) ? pdfW : (isLinkTarget ? 350 : 150); 
-
-    const htmlX = safeX * state.currentScale;
-    const htmlY = vp.height - (pdfY * state.currentScale);
-    const htmlW = safeW * state.currentScale;
-
-    const flashBox = document.getElementById('jump-highlight');
-    if (!flashBox) return;
-
-    if (flashBox.hideTimeout) clearTimeout(flashBox.hideTimeout);
-    if (flashBox.fadeTimeout) clearTimeout(flashBox.fadeTimeout);
-
-    wrapper.appendChild(flashBox);
-    
-    flashBox.style.left = `${htmlX - 5}px`;
-    flashBox.style.width = `${htmlW + 10}px`;
-    
-    if (isLinkTarget) {
-        flashBox.style.top = `${htmlY + (1 * state.currentScale)}px`;
-        flashBox.style.height = `${20 * state.currentScale}px`;
-    } else {
-        flashBox.style.top = `${htmlY - (12 * state.currentScale)}px`;
-        flashBox.style.height = `${16 * state.currentScale}px`;
-    }
-    
-    flashBox.classList.remove('hidden');
-    flashBox.style.transition = 'none';
-    flashBox.style.opacity = '1';
-
-    void flashBox.offsetHeight;
-    flashBox.style.transition = 'opacity 1.5s ease-in-out';
-
-    flashBox.fadeTimeout = setTimeout(() => { 
-        flashBox.style.opacity = '0';
-    }, 1200);
-
-    flashBox.hideTimeout = setTimeout(() => {
-        flashBox.classList.add('hidden'); 
-    }, 2700);
-};

@@ -2,6 +2,7 @@ export const state = {
     pdfDoc: null,
     pdfBytes: null,
     currentFilename: '',
+    isSigned: false,
     currentScale: 1,
     pageRotation: 0,
     headerMode: 'minimal',

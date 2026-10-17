@@ -1,8 +1,9 @@
 import { state } from './state.js';
 import { record } from './history.js';
 import { jumpTo } from './utils.js';
+import { showNotification } from './ui.js';
 
-export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLocked = false, isExportable = true) {
+export function addNoteToUI(overlay, pageNum, text, x, y, customW = null, customH = null, isPinned = false, isLocked = false, isExportable = true) {
     if (!overlay) return;
     const note = document.createElement('div');
     note.className = 'sticky-note';
@@ -80,8 +81,13 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
             
         } catch (err) {
             console.error("Erro ao copiar (usando fallback):", err);
-            // Fallback de segurança se o browser bloquear a API avançada
-            navigator.clipboard.writeText(isRaw ? editor.dataset.raw : editor.innerText);
+            try {
+                await navigator.clipboard.writeText(isRaw ? editor.dataset.raw : editor.innerText);
+                showNotification("Texto copiado sem formatação.", 'info');
+            } catch (fallbackError) {
+                console.error("Erro ao copiar texto:", fallbackError);
+                showNotification("Não foi possível copiar o conteúdo da nota.", 'error');
+            }
         }
     };
 
@@ -132,13 +138,15 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
     editor.innerHTML = text === '' ? '' : parseRichText(text);
     if (text === '') editor.setAttribute('placeholder', 'Escreve a tua nota...');
 
-    // copyBtn.onclick = (e) => {
-    //     e.stopPropagation();
-    //     navigator.clipboard.writeText(editor.dataset.raw);
-    //     const originalHTML = copyBtn.innerHTML;
-    //     copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-    //     setTimeout(() => { copyBtn.innerHTML = originalHTML; }, 1500);
-    // };
+    if (customW) editor.style.width = customW;
+    if (customH) editor.style.height = customH;
+
+    const resizeObserver = new ResizeObserver(() => {
+        if (document.body.contains(note)) {
+            saveNotesForPage(pageNum, overlay);
+        }
+    });
+    resizeObserver.observe(editor);
 
     header.onmousedown = (e) => {
         e.preventDefault(); 
@@ -276,7 +284,10 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
         record({
             label: 'Apagar nota',
             undo: () => {
-                deletedNote = addNoteToUI(overlay, pageNum, noteData.x, noteData.y, noteData.text, noteData.pinned, noteData.locked, noteData.exportable);
+                deletedNote = addNoteToUI(
+                    overlay, pageNum, noteData.text, noteData.x, noteData.y, noteData.width,
+                    noteData.height, noteData.pinned, noteData.locked, noteData.exportable
+                );
                 saveNotesForPage(pageNum, overlay);
             },
             redo: () => {
@@ -291,14 +302,21 @@ export function addNoteToUI(overlay, pageNum, x, y, text, isPinned = false, isLo
 }
 
 export function saveNotesForPage(pageNum, overlay) {
-    const notes = Array.from(overlay.querySelectorAll('.sticky-note')).map(note => ({
-        x: parseFloat(note.style.left),
-        y: parseFloat(note.style.top),
-        text: note.querySelector('.note-editor').dataset.raw,
-        pinned: note.classList.contains('pinned'),
-        locked: note.classList.contains('locked'),
-        exportable: !note.classList.contains('ghost-note')
-    }));
+    const notes = Array.from(overlay.querySelectorAll('.sticky-note')).map(note => {
+        const editorNode = note.querySelector('.note-editor');
+        
+        return {
+            x: parseFloat(note.style.left),
+            y: parseFloat(note.style.top),
+            width: editorNode.style.width || '',
+            height: editorNode.style.height || '',
+            text: editorNode.dataset.raw,
+            pinned: note.classList.contains('pinned'),
+            locked: note.classList.contains('locked'),
+            exportable: !note.classList.contains('ghost-note')
+        };
+    });
+
     chrome.storage.local.set({ [`${state.currentFilename}_pg${pageNum}_notes`]: notes }, () => {
         updateNotesSidebar();
     });
@@ -310,7 +328,13 @@ export function loadNotesForPage(pageNum) {
     overlay.innerHTML = '';
     const key = `${state.currentFilename}_pg${pageNum}_notes`;
     chrome.storage.local.get([key], result => {
-        (result[key] || []).forEach(note => addNoteToUI(overlay, pageNum, note.x, note.y, note.text, note.pinned, note.locked, note.exportable !== false));
+        (result[key] || []).forEach(note => {
+            addNoteToUI(
+                overlay, pageNum, note.text, note.x, note.y,
+                note.width, note.height, note.pinned,
+                note.locked, note.exportable !== false
+            );
+        });
         updateNotesSidebar();
     });
 }
@@ -326,24 +350,61 @@ export function updateNotesSidebar() {
         const prefix = `${state.currentFilename}_pg`;
         
         Object.keys(items).forEach(key => {
+            // 1. desenhar as notas amarelas
             if (key.startsWith(prefix) && key.endsWith('_notes')) {
                 const pageNum = parseInt(key.replace(prefix, '').replace('_notes', ''), 10);
-                const notes = items[key];
-
-                notes.forEach(note => {
+                items[key].forEach(note => {
                     let percentageY = (((pageNum - 1) + (note.y / 100)) / totalPages) * 100;
-
                     percentageY = Math.max(0.5, Math.min(99.2, percentageY));
 
                     const marker = document.createElement('div');
                     marker.className = 'note-marker';
                     marker.style.top = `${percentageY}%`;
-                    marker.title = `Página ${pageNum}:\n"${note.text ? note.text.substring(0, 30) + '...' : 'Nota vazia'}"`;
+                    marker.title = `Nota (Pág ${pageNum}):\n"${note.text ? note.text.substring(0, 30) + '...' : 'Nota vazia'}"`;
 
                     marker.onclick = () => {
                         jumpTo(pageNum, { htmlY: note.y, align: 'center' });
                     };
                     sidebar.appendChild(marker);
+                });
+            }
+
+            if (key.startsWith(prefix) && key.endsWith('_bookmarks')) {
+                const pageNum = parseInt(key.replace(prefix, '').replace('_bookmarks', ''), 10);
+                items[key].forEach(bookmark => {
+                    if (bookmark.type && bookmark.type !== 'bookmark') return;
+
+                    let percentageY = (((pageNum - 1) + (bookmark.y / 100)) / totalPages) * 100;
+                    percentageY = Math.max(0.5, Math.min(99.2, percentageY));
+
+                    const marker = document.createElement('div');
+                    marker.className = 'bookmark-marker';
+                    marker.style.top = `${percentageY}%`;
+                    marker.title = `Marcador (Pág ${pageNum}):\n"${bookmark.title || 'Marcador sem nome'}"`;
+                    marker.onclick = () => jumpTo(pageNum, { htmlY: bookmark.y, align: 'center' });
+                    sidebar.appendChild(marker);
+                });
+            }
+
+            // 2. desenhar os bookmarks
+            if (key.startsWith(prefix) && key.endsWith('_annotations')) {
+                const pageNum = parseInt(key.replace(prefix, '').replace('_annotations', ''), 10);
+                items[key].forEach(annot => {
+                    if (annot.mode === 'bookmark') {
+                        let percentageY = (((pageNum - 1) + (annot.y / 100)) / totalPages) * 100;
+                        percentageY = Math.max(0.5, Math.min(99.2, percentageY));
+
+                        const marker = document.createElement('div');
+                        marker.className = 'bookmark-marker';
+                        marker.style.top = `${percentageY}%`;
+                        marker.style.backgroundColor = annot.color; // A cor do Bookmark!
+                        marker.title = `Marcador (Pág ${pageNum}):\n"${annot.text ? annot.text.substring(0, 40) + '...' : ''}"`;
+
+                        marker.onclick = () => {
+                        jumpTo(pageNum, { htmlY: annot.y, align: 'center' });
+                    };
+                        sidebar.appendChild(marker);
+                    }
                 });
             }
         });
