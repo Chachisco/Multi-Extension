@@ -204,3 +204,27 @@
 #figures-toolbar-wrapper.is-scrolled:hover .figures-toolbar {
     transform: translateY(0);
 }
+
+/* bookmarks */
+.list-action-btn {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    padding: 3px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.list-action-btn:hover {
+    color: #0376db;
+    background: rgba(3, 118, 219, 0.1);
+}
+
+.list-action-btn.delete-btn:hover {
+    color: #e51400;
+    background: rgba(229, 20, 0, 0.1);
+}

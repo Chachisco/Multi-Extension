@@ -151,6 +151,13 @@ function triggerSearch() {
     debounceTimeout = setTimeout(performSearch, 200);
 }
 
+function preparePdfTextSearch() {
+    return new Promise(resolve => {
+        document.addEventListener('pdf-search-text-ready', resolve, { once: true });
+        document.dispatchEvent(new Event('pdf-search-prepare-text'));
+    });
+}
+
 // --- 3. MOTOR DE PESQUISA CORE ---
 async function performSearch() {
     currentSearchId++;
@@ -185,6 +192,11 @@ async function performSearch() {
             rowEl.classList.add('is-loading');
         }
     });
+
+    if (isPdfViewer()) {
+        await preparePdfTextSearch();
+        if (mySearchId !== currentSearchId) return;
+    }
 
     const treeWalker = document.createTreeWalker(getSearchRoot(), NodeFilter.SHOW_TEXT, null, false);
     let textNode;
@@ -250,7 +262,10 @@ function applyHighlights(searchId, rangesByColor) {
     if (!CSS.highlights) return;
 
     sidebar.innerHTML = ''; 
-    const pageHeight = isPdfViewer() ? getPdfViewport().scrollHeight : document.documentElement.scrollHeight;
+    const pdfViewport = isPdfViewer() ? getPdfViewport() : null;
+    const pageHeight = pdfViewport ? pdfViewport.scrollHeight : document.documentElement.scrollHeight;
+    sidebar.style.top = pdfViewport ? `${pdfViewport.getBoundingClientRect().top + 10}px` : '0px';
+    sidebar.style.height = pdfViewport ? `${pdfViewport.clientHeight-10}px` : '100vh';
 
     rangesByColor.forEach((ranges, idx) => {
         if (ranges.length > 0) {
@@ -261,8 +276,8 @@ function applyHighlights(searchId, rangesByColor) {
             const limit = Math.min(ranges.length, 500);
             for (let i = 0; i < limit; i++) {
                 const rect = ranges[i].getBoundingClientRect();
-                const viewportOffset = isPdfViewer() ? getPdfViewport().getBoundingClientRect().top : 0;
-                const scrollOffset = isPdfViewer() ? getPdfViewport().scrollTop : window.scrollY;
+                const viewportOffset = pdfViewport ? pdfViewport.getBoundingClientRect().top : 0;
+                const scrollOffset = pdfViewport ? pdfViewport.scrollTop : window.scrollY;
                 const absoluteY = rect.top - viewportOffset + scrollOffset;
                 
                 const marker = document.createElement('div');

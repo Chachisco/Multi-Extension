@@ -21,6 +21,7 @@ let zoomRequestId = 0;
 let pageObserver = null;
 let lastStoredPage = null;
 const pageCache = new Map();
+let searchTextLayerPreparation = null;
 
 const linkService = {
     getDestinationHash: dest => dest,
@@ -233,8 +234,9 @@ export async function renderPage(pageNum) {
         const canvas = wrapper.querySelector('canvas:not(.drawing-canvas)');
         const context = canvas.getContext('2d', { alpha: false });
         const textLayerDiv = wrapper.querySelector('.textLayer');
-        const textLayer = new TextLayerBuilder({ pdfPage: page });
-        textLayer.div = textLayerDiv;
+        const textLayerReady = textLayerDiv.dataset.searchScale === String(state.currentScale);
+        const textLayer = textLayerReady ? null : new TextLayerBuilder({ pdfPage: page });
+        if (textLayer) textLayer.div = textLayerDiv;
         textLayerDiv.style.setProperty('--total-scale-factor', state.currentScale);
         textLayerDiv.style.setProperty('--min-font-size', '1');
         textLayerDiv.style.setProperty('--min-font-size-inv', '1');
@@ -256,9 +258,11 @@ export async function renderPage(pageNum) {
         await renderTask.promise;
 
 
-        state.textLayerTasks[pageNum] = textLayer;
-        await textLayer.render({ viewport: pageViewport });
-
+        if (textLayer) {
+            state.textLayerTasks[pageNum] = textLayer;
+            await textLayer.render({ viewport: pageViewport });
+            textLayerDiv.dataset.searchScale = String(state.currentScale);
+        }
         wrapper.dataset.rendered = 'true';
         wrapper.dataset.scale = state.currentScale;
         loadNotesForPage(pageNum);
@@ -286,16 +290,94 @@ export async function renderPage(pageNum) {
             showNotification("Não foi possível apresentar alguns links deste PDF.", 'warning');
         }
     } catch (error) {
-        if (error.name !== 'RenderingCancelledException') {
-            console.error(error);
-            showNotification(`Erro ao renderizar a página ${pageNum}: ${error.message || error}`, 'error');
+        const isTextLayerCancellation = error.name === 'AbortException' && error.message === 'TextLayer task cancelled.';
+        if (error.name !== 'RenderingCancelledException' && !isTextLayerCancellation) {
+            console.error(`Erro ao renderizar a página ${pageNum}:`, error);
+            showNotification(
+                `Erro ao renderizar a página ${pageNum}: ${error.message || error}`,
+                'error',
+                error.stack || String(error)
+            );
         }
     } finally {
         state.renderingStates[pageNum] = false;
         state.renderTasks[pageNum] = null;
         if (wrapper && Number(wrapper.dataset.scale) !== state.currentScale) renderPage(pageNum);
+        document.dispatchEvent(new CustomEvent('pdf-page-rendered', { detail: { pageNum } }));
     }
 }
+
+function waitForPageRender(pageNum) {
+    if (!state.renderingStates[pageNum]) return Promise.resolve();
+    return new Promise(resolve => {
+        const onRendered = event => {
+            if (event.detail.pageNum !== pageNum) return;
+            document.removeEventListener('pdf-page-rendered', onRendered);
+            resolve();
+        };
+        document.addEventListener('pdf-page-rendered', onRendered);
+        if (!state.renderingStates[pageNum]) {
+            document.removeEventListener('pdf-page-rendered', onRendered);
+            resolve();
+        }
+    });
+}
+
+async function renderTextLayersForSearch() {
+    const pdfDoc = state.pdfDoc;
+    if (!pdfDoc) return true;
+    const scale = state.currentScale;
+
+    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        if (pdfDoc !== state.pdfDoc || scale !== state.currentScale) return false;
+        const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
+        const textLayerDiv = wrapper?.querySelector('.textLayer');
+        if (!wrapper || !textLayerDiv) continue;
+
+        while (state.renderingStates[pageNum]) await waitForPageRender(pageNum);
+        if (pdfDoc !== state.pdfDoc || scale !== state.currentScale) return false;
+        if (textLayerDiv.dataset.searchScale === String(scale)) continue;
+
+        const page = await getPage(pageNum);
+        if (pdfDoc !== state.pdfDoc || scale !== state.currentScale) return false;
+        const pageViewport = page.getViewport({ scale, rotation: (page.rotate || 0) + state.pageRotation });
+        textLayerDiv.style.setProperty('--total-scale-factor', scale);
+        textLayerDiv.style.setProperty('--min-font-size', '1');
+        textLayerDiv.style.setProperty('--min-font-size-inv', '1');
+
+        const textLayer = new TextLayerBuilder({ pdfPage: page });
+        textLayer.div = textLayerDiv;
+        state.textLayerTasks[pageNum] = textLayer;
+        try {
+            await textLayer.render({ viewport: pageViewport });
+        } catch (error) {
+            if (pdfDoc !== state.pdfDoc || scale !== state.currentScale || error.name === 'AbortException') return false;
+            throw error;
+        }
+
+        if (pdfDoc !== state.pdfDoc || scale !== state.currentScale) return false;
+        textLayerDiv.dataset.searchScale = String(scale);
+    }
+    return true;
+}
+
+document.addEventListener('pdf-search-prepare-text', async () => {
+    if (!searchTextLayerPreparation) {
+        searchTextLayerPreparation = (async () => {
+            while (state.pdfDoc && !(await renderTextLayersForSearch())) {}
+        })();
+    }
+
+    try {
+        await searchTextLayerPreparation;
+    } catch (error) {
+        console.error('Erro ao preparar texto do PDF para pesquisa:', error);
+        showNotification(`Não foi possível preparar o texto para pesquisa: ${error.message || error}`, 'error', error.stack || '');
+    } finally {
+        searchTextLayerPreparation = null;
+        document.dispatchEvent(new Event('pdf-search-text-ready'));
+    }
+});
 
 function setupObserver() {
     pageObserver?.disconnect();
@@ -338,6 +420,7 @@ function updatePageGeometry(page, pageNum) {
         canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
     }
     wrapper.querySelector('.textLayer').innerHTML = '';
+    delete wrapper.querySelector('.textLayer').dataset.searchScale;
     wrapper.querySelector('.pdf-links-layer').innerHTML = '';
 
     return wrapper;
@@ -512,6 +595,6 @@ window.showReferencePreview = async function(pageNum, refNameText = null, destY 
         
     } catch (err) {
         console.error("Erro ao gerar preview de referência:", err);
-        showNotification(`Erro ao gerar a pré-visualização: ${err.message || err}`, 'error');
+        showNotification(`Erro ao gerar a pré-visualização: ${err.message || err}`, 'error', err.stack || '');
     }
 }

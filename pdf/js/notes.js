@@ -86,7 +86,7 @@ export function addNoteToUI(overlay, pageNum, text, x, y, customW = null, custom
                 showNotification("Texto copiado sem formatação.", 'info');
             } catch (fallbackError) {
                 console.error("Erro ao copiar texto:", fallbackError);
-                showNotification("Não foi possível copiar o conteúdo da nota.", 'error');
+                showNotification("Não foi possível copiar o conteúdo da nota.", 'error', fallbackError.stack || '');
             }
         }
     };

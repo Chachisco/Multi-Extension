@@ -108,6 +108,7 @@ export async function updateBookmarksSidebar() {
         actionsDiv.style.display = "flex"; actionsDiv.style.gap = "4px";
 
         const btnEdit = document.createElement('button');
+        btnEdit.className = 'list-action-btn';
         btnEdit.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
         btnEdit.style.cssText = "background:transparent; border:none; color:#888; cursor:pointer;";
         
@@ -117,11 +118,11 @@ export async function updateBookmarksSidebar() {
         };
 
         const btnDel = document.createElement('button');
+        btnDel.className = 'list-action-btn delete-btn'; 
         btnDel.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
         btnDel.style.cssText = "background:transparent; border:none; color:#888; cursor:pointer;";
 
         btnDel.onclick = () => {
-            if (!confirm("Apagar este marcador?")) return;
             const overlay = document.querySelector(`#page-wrapper-${bmk.pageNum} .bookmarks-overlay`);
             if (overlay) {
                 const icons = overlay.querySelectorAll('.pdf-bookmark-icon');
