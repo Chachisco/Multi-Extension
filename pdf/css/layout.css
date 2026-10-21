@@ -25,6 +25,9 @@ input, textarea {
     scroll-behavior: auto;
     transition: all 0.25s ease;
 }
+#viewport::-webkit-scrollbar:horizontal {
+    display: none !important;
+}
 body.sidebar-open-left #viewport {
     width: calc(100vw - 250px - 40px);
     left: calc(250px + 40px);

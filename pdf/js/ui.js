@@ -264,7 +264,7 @@ export function setupUI() {
     };
     
     // Slider Lateral e Input de Página
-    document.getElementById('lateral-slider').oninput = event => { container.style.transform = `translateX(${event.target.value * 10}px)`; };
+    document.getElementById('lateral-slider').oninput = event => { container.style.transform = `translateX(${-event.target.value * 10}px)`; };
     pageInput.onchange = () => {
         let val = parseInt(pageInput.value, 10);
         if (isNaN(val) || val < 1) val = 1;
@@ -360,7 +360,7 @@ export function setupUI() {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
                     console.error("Erro ao ativar ecrã inteiro:", err);
-                    showNotification(`Não foi possível ativar o ecrã inteiro: ${err.message}`, 'error');
+                    showNotification(`Não foi possível ativar o ecrã inteiro: ${err.message}`, 'error', err.stack || '');
                 });
             } else {
                 document.exitFullscreen();
@@ -436,7 +436,7 @@ export function setupUI() {
 
             } catch (err) {
                 console.error("Erro ao imprimir:", err);
-                showNotification("Falha ao abrir a caixa de impressão.", "error");
+                showNotification("Falha ao abrir a caixa de impressão.", "error", err.stack || '');
             }
         };
     }
@@ -1180,7 +1180,7 @@ export async function downloadBurnIn() {
 
     } catch (e) {
         console.error("Erro ao gerar PDF com notas:", e);
-        showNotification(`Ocorreu um erro ao exportar as notas: ${e.message || e}`, 'error');
+        showNotification(`Ocorreu um erro ao exportar as notas: ${e.message || e}`, 'error', e.stack || '');
     }
 }
 
@@ -1204,7 +1204,7 @@ export async function downloadWithNotes() {
     }
 }
 
-export function showNotification(message, type = 'info') {
+export function showNotification(message, type = 'info', details = '') {
     const normalizedType = type === 'warn' ? 'warning' : type;
     const consoleContainer = document.getElementById('cmd-console');
     if (consoleContainer) {
@@ -1228,7 +1228,7 @@ export function showNotification(message, type = 'info') {
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const currentFile = state.originalFilename || 'Desconhecido';
     
-    logHistory.push({ time: timeStr, type: normalizedType, message, file: currentFile });
+    logHistory.push({ time: timeStr, type: normalizedType, message, details, file: currentFile });
     renderLogs();
 }
 
@@ -1246,6 +1246,11 @@ function renderLogs() {
         if (filterCurrent && log.file !== activeFile) return;
         const div = document.createElement('div');
         div.className = `log-item ${log.type}`;
+        div.setAttribute('role', 'button');
+        div.tabIndex = 0;
+        div.title = log.type === 'error' && log.details
+            ? 'Clicar para copiar a mensagem e a stack do erro'
+            : 'Clicar para copiar a mensagem';
         const time = document.createElement('span');
         time.className = 'time';
         time.textContent = `[${log.time}]`;
@@ -1254,6 +1259,31 @@ function renderLogs() {
         file.title = log.file;
         file.textContent = `(${log.file.length > 25 ? log.file.substring(0, 22) + '...' : log.file})`;
         div.append(time, document.createTextNode(' '), file, document.createTextNode(` ${log.message}`));
+        const copyLog = async () => {
+            const text = log.type === 'error' && log.details
+                ? `${log.message}\n\n${log.details}`
+                : log.message;
+            try {
+                await navigator.clipboard.writeText(text);
+                div.dataset.copyState = 'copied';
+                setTimeout(() => delete div.dataset.copyState, 1200);
+            } catch (error) {
+                console.warn('Não foi possível copiar o registo:', error);
+                showNotification('Não foi possível copiar o registo para a área de transferência.', 'error', error.stack || '');
+            }
+        };
+        div.addEventListener('click', copyLog);
+        div.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            copyLog();
+        });
+        if (log.details) {
+            const stack = document.createElement('pre');
+            stack.className = 'log-stack';
+            stack.textContent = log.details;
+            div.appendChild(stack);
+        }
         container.appendChild(div);
         count++;
     });
@@ -1292,7 +1322,7 @@ async function saveToFileSystem(data, requestSaveAs, prefix = '') {
         return handle.name;
     } catch (err) {
         if (err.name !== 'AbortError') {
-            showNotification("Falha ao gravar o ficheiro no disco.", "error");
+            showNotification("Falha ao gravar o ficheiro no disco.", "error", err.stack || '');
         }
         return null;
     }

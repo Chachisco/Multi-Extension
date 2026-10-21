@@ -96,7 +96,7 @@ export async function deleteSinglePage(pageNum, keepNotes) {
         reloadViewerWithNewBytes(modifiedBytes, Math.max(1, pageNum - 1));
     } catch (e) {
         console.error("Erro ao apagar:", e);
-        showNotification(`Não foi possível apagar a página: ${e.message || e}`, 'error');
+        showNotification(`Não foi possível apagar a página: ${e.message || e}`, 'error', e.stack || '');
     }
 }
 
@@ -115,7 +115,7 @@ export async function rotateSinglePage(pageNum, angleDelta) {
         reloadViewerWithNewBytes(modifiedBytes, pageNum);
     } catch (e) {
         console.error("Erro ao rodar:", e);
-        showNotification(`Não foi possível rodar a página: ${e.message || e}`, 'error');
+        showNotification(`Não foi possível rodar a página: ${e.message || e}`, 'error', e.stack || '');
     }
 }
 
@@ -145,7 +145,7 @@ export async function reorderPDFPages(fromPage, toPage) {
         reloadViewerWithNewBytes(modifiedBytes, toPage);
     } catch (e) {
         console.error("Erro ao reordenar:", e);
-        showNotification(`Não foi possível reordenar as páginas: ${e.message || e}`, 'error');
+        showNotification(`Não foi possível reordenar as páginas: ${e.message || e}`, 'error', e.stack || '');
     }
 }
 
@@ -201,6 +201,6 @@ export async function mergePDFs(newPdfBytes, insertAtPage) {
         
     } catch (e) {
         console.error("Erro ao juntar PDFs:", e);
-        showNotification(`Ocorreu um erro ao juntar os PDFs: ${e.message || e}`, 'error');
+        showNotification(`Ocorreu um erro ao juntar os PDFs: ${e.message || e}`, 'error', e.stack || '');
     }
 }

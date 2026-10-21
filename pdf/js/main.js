@@ -107,7 +107,7 @@ fileInput.onchange = async () => {
         hideFallbackScreen();
     } catch (error) {
         console.error("Erro ao abrir ficheiro:", error);
-        showNotification(`Não foi possível abrir o ficheiro: ${error.message || error}`, 'error');
+        showNotification(`Não foi possível abrir o ficheiro: ${error.message || error}`, 'error', error.stack || '');
         showFallbackScreen(null, "Não foi possível abrir este ficheiro. Escolhe outro PDF.");
     }
 };
@@ -157,7 +157,7 @@ async function init() {
             }
         } catch (error) {
             console.error("Erro ao carregar o PDF do URL:", error);
-            showNotification(`Não foi possível carregar o PDF: ${error.message || error}`, 'error');
+            showNotification(`Não foi possível carregar o PDF: ${error.message || error}`, 'error', error.stack || '');
             showFallbackScreen(decodedUrl, "Não foi possível carregar este PDF. Podes escolher outro ficheiro ou abrir o link no navegador.");
         }
     } else {

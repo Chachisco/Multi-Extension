@@ -242,7 +242,7 @@ async function loadOutline() {
                         }
                     } catch (error) {
                         console.error(error);
-                        showNotification(`Não foi possível abrir o destino do índice: ${error.message || error}`, 'error');
+                        showNotification(`Não foi possível abrir o destino do índice: ${error.message || error}`, 'error', error.stack || '');
                     }
                 };
 
@@ -250,10 +250,9 @@ async function loadOutline() {
             });
         };
         renderItems(outline, 0, viewOutline);
-        renderItems(outline, 0, viewOutline);
     } catch (e) {
         console.error("Erro ao carregar o Índice", e);
-        showNotification(`Erro ao carregar o índice: ${e.message || e}`, 'error');
+        showNotification(`Erro ao carregar o índice: ${e.message || e}`, 'error', e.stack || '');
     }
 }
 
@@ -596,7 +595,7 @@ async function loadFiguresList() {
 
     } catch (e) {
         console.error("Erro ao analisar documento:", e);
-        showNotification(`Erro ao analisar o documento: ${e.message || e}`, 'error');
+        showNotification(`Erro ao analisar o documento: ${e.message || e}`, 'error', e.stack || '');
         listContainer.innerHTML = '<div class="outline-item italic">Erro fatal ao analisar documento.</div>';
     }
 }
@@ -874,7 +873,7 @@ async function loadBibliography() {
 
     } catch (e) {
         console.error("Erro na Bibliografia:", e);
-        showNotification(`Erro ao carregar a bibliografia: ${e.message || e}`, 'error');
+        showNotification(`Erro ao carregar a bibliografia: ${e.message || e}`, 'error', e.stack || '');
         listContainer.innerHTML = '<div class="outline-item italic">Erro ao processar documento.</div>';
     }
 }
