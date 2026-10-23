@@ -750,7 +750,7 @@ function handleKeydown(event) {
             document.getElementById('viewport').scrollBy({ top: -getFocusLineHeight(ruler), behavior: 'smooth' });
         } else {
             const prev = Math.max(1, currentPage - 1);
-            jumpTo(next, { align: 'top' });
+            jumpTo(prev, { align: 'top' });
         }
     }
     if (event.key === 'ArrowRight' && !event.altKey){
