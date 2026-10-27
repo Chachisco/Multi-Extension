@@ -665,7 +665,7 @@ function handleKeydown(event) {
         if (isTyping) return;
 
         event.preventDefault(); 
-        const currentPage = getCurrentPageNumber();
+        const currentPage = parseInt(document.getElementById('page-input').value, 10) || getCurrentPageNumber();
         const textLayer = document.querySelector(`#page-wrapper-${currentPage} .textLayer`);
         
         if (textLayer) {

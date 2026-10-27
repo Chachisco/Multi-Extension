@@ -1,5 +1,7 @@
 import { state } from './state.js';
 
+let lastJumpTime = 0;
+
 /**
  * Viaja para qualquer ponto do PDF de forma segura.
  * @param {number} pageNum - A página de destino
@@ -16,6 +18,13 @@ export async function jumpTo(pageNum, options = {}) {
         flashW = null,
         origin = 'baseline'
     } = options;
+
+    let finalBehavior = behavior;
+    const now = Date.now();
+    if (now - lastJumpTime < 350) {
+        finalBehavior = 'auto';
+    }
+    lastJumpTime = now;
 
     const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
     const viewport = document.getElementById('viewport');
@@ -47,7 +56,7 @@ export async function jumpTo(pageNum, options = {}) {
     targetY = Math.max(0, targetY);
     const maxScroll = viewport.scrollHeight - viewport.clientHeight;
     targetY = Math.min(targetY, maxScroll);
-    viewport.scrollTo({ top: targetY, behavior });
+    viewport.scrollTo({ top: targetY, behavior: finalBehavior });
 
     if (pdfY !== null || htmlY !== null) {
         flashHighlight(pageNum, { pdfX: flashX, pdfY, htmlY, pdfW: flashW, origin });
