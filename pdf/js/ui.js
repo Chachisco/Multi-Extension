@@ -658,9 +658,12 @@ function setupGlobalEvents() {
 }
 
 function handleKeydown(event) {
-    const isTyping = document.activeElement?.tagName === 'INPUT' || 
-                     document.activeElement?.tagName === 'TEXTAREA' || 
-                     document.activeElement?.isContentEditable;
+    const active = document.activeElement;
+    const isTyping = active?.tagName === 'INPUT' || 
+                     active?.tagName === 'TEXTAREA' || 
+                     active?.isContentEditable || 
+                     (active?.closest && active.closest('.note-editor'));
+
      if (event.ctrlKey && event.key.toLowerCase() === 'a') { //ctrl + 'a' -> selecionar o conteúdo do pdf inteiro, excluindo pagina e zoom
         if (isTyping) return;
 
