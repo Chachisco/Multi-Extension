@@ -21,12 +21,9 @@ input, textarea {
     width: calc(100vw - 40px);
     height: calc(100vh - 40px);
     overflow-y: auto;
-    overflow-x: auto;
+    overflow-x: hidden;
     scroll-behavior: auto;
     transition: all 0.25s ease;
-}
-#viewport::-webkit-scrollbar:horizontal {
-    display: none !important;
 }
 body.sidebar-open-left #viewport {
     width: calc(100vw - 250px - 40px);
@@ -89,7 +86,14 @@ body.sidebar-open-right #viewport {
     margin: 5px 0;
 }
 
-#pages-container { display: flex; flex-direction: column; align-items: center; padding: 60px 0; transition: transform 0.1s ease-out; }
+#pages-container { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    padding: 60px 0;
+    transition: transform 0.1s ease-out; 
+}
+
 .page-wrapper {
     position: relative;
     margin-bottom: 30px;

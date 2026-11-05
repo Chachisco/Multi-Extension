@@ -474,6 +474,7 @@ export async function updateZoom(newScale, zoomAnchor = null) {
         pageCache.forEach((page, pageNum) => updatePageGeometry(page, pageNum));
         if (requestId !== zoomRequestId) return;
         if (!restoreZoomAnchor(zoomAnchor)) restoreScrollAnchor(scrollAnchor);
+        window.dispatchEvent(new CustomEvent('pdf-zoom-changed'));
     }
     
     renderVisiblePages();

@@ -264,7 +264,7 @@ export function setupUI() {
     };
     
     // Slider Lateral e Input de Página
-    document.getElementById('lateral-slider').oninput = event => { container.style.transform = `translateX(${-event.target.value * 10}px)`; };
+    document.getElementById('lateral-slider').oninput = event => { container.style.transform = `translateX(${event.target.value * 10}px)`; };
     pageInput.onchange = () => {
         let val = parseInt(pageInput.value, 10);
         if (isNaN(val) || val < 1) val = 1;
