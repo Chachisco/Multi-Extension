@@ -264,7 +264,7 @@ export function setupUI() {
     };
     
     // Slider Lateral e Input de Página
-    document.getElementById('lateral-slider').oninput = event => { container.style.transform = `translateX(${-event.target.value * 10}px)`; };
+    document.getElementById('lateral-slider').oninput = event => { container.style.transform = `translateX(${event.target.value * 10}px)`; };
     pageInput.onchange = () => {
         let val = parseInt(pageInput.value, 10);
         if (isNaN(val) || val < 1) val = 1;
@@ -658,14 +658,17 @@ function setupGlobalEvents() {
 }
 
 function handleKeydown(event) {
-    const isTyping = document.activeElement?.tagName === 'INPUT' || 
-                     document.activeElement?.tagName === 'TEXTAREA' || 
-                     document.activeElement?.isContentEditable;
+    const active = document.activeElement;
+    const isTyping = active?.tagName === 'INPUT' || 
+                     active?.tagName === 'TEXTAREA' || 
+                     active?.isContentEditable || 
+                     (active?.closest && active.closest('.note-editor'));
+
      if (event.ctrlKey && event.key.toLowerCase() === 'a') { //ctrl + 'a' -> selecionar o conteúdo do pdf inteiro, excluindo pagina e zoom
         if (isTyping) return;
 
         event.preventDefault(); 
-        const currentPage = getCurrentPageNumber();
+        const currentPage = parseInt(document.getElementById('page-input').value, 10) || getCurrentPageNumber();
         const textLayer = document.querySelector(`#page-wrapper-${currentPage} .textLayer`);
         
         if (textLayer) {

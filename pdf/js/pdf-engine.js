@@ -158,6 +158,7 @@ export async function loadPDF(source, filename) {
             <div class="textLayer"></div>
             <div class="notes-overlay"></div>
             <div class="bookmarks-overlay"></div>
+            <div class="search-overlay" style="position: absolute; inset: 0; pointer-events: none; z-index: 15;"></div>
         `;
         container.appendChild(wrapper);
         initDrawingLayer(wrapper, pageNum);
@@ -323,62 +324,6 @@ function waitForPageRender(pageNum) {
     });
 }
 
-async function renderTextLayersForSearch() {
-    const pdfDoc = state.pdfDoc;
-    if (!pdfDoc) return true;
-    const scale = state.currentScale;
-
-    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-        if (pdfDoc !== state.pdfDoc || scale !== state.currentScale) return false;
-        const wrapper = document.getElementById(`page-wrapper-${pageNum}`);
-        const textLayerDiv = wrapper?.querySelector('.textLayer');
-        if (!wrapper || !textLayerDiv) continue;
-
-        while (state.renderingStates[pageNum]) await waitForPageRender(pageNum);
-        if (pdfDoc !== state.pdfDoc || scale !== state.currentScale) return false;
-        if (textLayerDiv.dataset.searchScale === String(scale)) continue;
-
-        const page = await getPage(pageNum);
-        if (pdfDoc !== state.pdfDoc || scale !== state.currentScale) return false;
-        const pageViewport = page.getViewport({ scale, rotation: (page.rotate || 0) + state.pageRotation });
-        textLayerDiv.style.setProperty('--total-scale-factor', scale);
-        textLayerDiv.style.setProperty('--min-font-size', '1');
-        textLayerDiv.style.setProperty('--min-font-size-inv', '1');
-
-        const textLayer = new TextLayerBuilder({ pdfPage: page });
-        textLayer.div = textLayerDiv;
-        state.textLayerTasks[pageNum] = textLayer;
-        try {
-            await textLayer.render({ viewport: pageViewport });
-        } catch (error) {
-            if (pdfDoc !== state.pdfDoc || scale !== state.currentScale || error.name === 'AbortException') return false;
-            throw error;
-        }
-
-        if (pdfDoc !== state.pdfDoc || scale !== state.currentScale) return false;
-        textLayerDiv.dataset.searchScale = String(scale);
-    }
-    return true;
-}
-
-document.addEventListener('pdf-search-prepare-text', async () => {
-    if (!searchTextLayerPreparation) {
-        searchTextLayerPreparation = (async () => {
-            while (state.pdfDoc && !(await renderTextLayersForSearch())) {}
-        })();
-    }
-
-    try {
-        await searchTextLayerPreparation;
-    } catch (error) {
-        console.error('Erro ao preparar texto do PDF para pesquisa:', error);
-        showNotification(`Não foi possível preparar o texto para pesquisa: ${error.message || error}`, 'error', error.stack || '');
-    } finally {
-        searchTextLayerPreparation = null;
-        document.dispatchEvent(new Event('pdf-search-text-ready'));
-    }
-});
-
 function setupObserver() {
     pageObserver?.disconnect();
     pageObserver = new IntersectionObserver(entries => entries.forEach(entry => {
@@ -474,6 +419,7 @@ export async function updateZoom(newScale, zoomAnchor = null) {
         pageCache.forEach((page, pageNum) => updatePageGeometry(page, pageNum));
         if (requestId !== zoomRequestId) return;
         if (!restoreZoomAnchor(zoomAnchor)) restoreScrollAnchor(scrollAnchor);
+        window.dispatchEvent(new CustomEvent('pdf-zoom-changed'));
     }
     
     renderVisiblePages();

@@ -430,12 +430,93 @@ function parseRichText(str) {
 
     // 3. Símbolos Gregos e Matemáticos
     const symbolsMap = {
-        '/alpha': 'α', '/beta': 'β', '/gamma': 'γ', '/Gamma': 'Γ', '/delta': 'δ', '/Delta': 'Δ',
-        '/epsilon': 'ε', '/zeta': 'ζ', '/eta': 'η', '/theta': 'θ', '/Theta': 'Θ', '/iota': 'ι',
-        '/kappa': 'κ', '/lambda': 'λ', '/Lambda': 'Λ', '/mu': 'μ', '/nu': 'ν', '/xi': 'ξ', '/Xi': 'Ξ',
-        '/pi': 'π', '/Pi': 'Π', '/rho': 'ρ', '/sigma': 'σ', '/Sigma': 'Σ', '/tau': 'τ',
-        '/upsilon': 'υ', '/phi': 'φ', '/Phi': 'Φ', '/chi': 'χ', '/psi': 'ψ', '/Psi': 'Ψ', '/omega': 'ω', '/Omega': 'Ω',
-        '/inf': '∞', '/int': '∫', '/sum': '∑', '/prod': '∏', '/nabla': '∇', '/part': '∂'
+        // --- ALFABETO GREGO ---
+        '/alpha': 'α', '/Alpha': 'Α',
+        '/beta': 'β', '/Beta': 'Β',
+        '/gamma': 'γ', '/Gamma':
+        'Γ', '/delta': 'δ', '/Delta': 'Δ',
+        '/epsilon': 'ε', '/Epsilon':
+        'Ε', '/zeta': 'ζ', '/Zeta': 'Ζ',
+        '/eta': 'η', '/Eta':'Η',
+        '/theta': 'θ', '/Theta': 'Θ',
+        '/iota': 'ι', '/Iota': 'Ι',
+        '/kappa': 'κ', '/Kappa': 'Κ',
+        '/lambda': 'λ', '/Lambda': 'Λ',
+        '/mu': 'μ', '/Mu': 'Μ',
+        '/nu': 'ν', '/Nu': 'Ν',
+        '/xi': 'ξ', '/Xi': 'Ξ',
+        '/omicron': 'ο', '/Omicron': 'Ο',
+        '/pi': 'π', '/Pi': 'Π',
+        '/rho': 'ρ', '/Rho': 'Ρ',
+        '/sigma': 'σ', '/Sigma': 'Σ',
+        '/tau': 'τ', '/Tau': 'Τ',
+        '/upsilon': 'υ', '/Upsilon': 'Υ',
+        '/phi': 'φ', '/Phi': 'Φ',
+        '/chi': 'χ', '/Chi': 'Χ',
+        '/psi': 'ψ', '/Psi': 'Ψ',
+        '/omega': 'ω', '/Omega': 'Ω',
+        
+        // --- CÁLCULO E ÁLGEBRA ---
+        '/inf': '∞', 
+        '/int': '∫', '/iint': '∬', '/oint': '∮',
+        '/sum': '∑', 
+        '/prod': '∏', 
+        '/nabla': '∇', 
+        '/part': '∂',
+        '/sqrt': '√',
+        '/pm': '±', '/mp': '∓',
+        '/times': '×', '/div': '÷',
+        '/cdot': '⋅', // ponto de multiplicação
+        '/propto': '∝', // proporcional a
+
+        // --- COMPARAÇÃO E EQUIVALÊNCIA ---
+        '/neq': '≠',
+        '/leq': '≤',
+        '/geq': '≥',
+        '/approx': '≈',
+        '/equiv': '≡',
+        '/sim': '∼',
+        '/cong': '≅',
+
+        // --- LÓGICA E CONJUNTOS ---
+        '/forall': '∀',
+        '/exists': '∃',
+        '/nexists': '∄',
+        '/in': '∈',
+        '/notin': '∉',
+        '/subset': '⊂',
+        '/subseteq': '⊆',
+        '/union': '∪',
+        '/intersect': '∩',
+        '/emptyset': '∅',
+        '/and': '∧',
+        '/or': '∨',
+        '/not': '¬',
+        '/therefore': '∴',
+        '/because': '∵',
+
+        // --- SETAS ---
+        '/->': '→', '/rightarrow': '→',
+        '/<-': '←', '/leftarrow': '←',
+        '/<->': '↔', '/leftrightarrow': '↔',
+        '/=>': '⇒', '/Rightarrow': '⇒',
+        '/<=>': '⇔', '/Leftrightarrow': '⇔',
+        '/uparrow': '↑',
+        '/downarrow': '↓',
+
+        // --- CONJUNTOS NUMÉRICOS ---
+        '/R': 'ℝ',
+        '/N': 'ℕ',
+        '/Z': 'ℤ',
+        '/Q': 'ℚ',
+        '/C': 'ℂ',
+
+        // --- OUTROS ---
+        '/degree': '°',
+        '/angle': '∠',
+        '/perp': '⊥',
+        '/parallel': '∥',
+        '/aleph': 'ℵ'
     };
     Object.keys(symbolsMap).forEach(key => {
         html = html.replace(new RegExp(key, 'g'), symbolsMap[key]);

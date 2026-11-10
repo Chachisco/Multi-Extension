@@ -7,6 +7,9 @@ import { setupUI, setHeaderMode, showNotification } from './ui.js';
 import { addBookmarkToUI, saveBookmarksForPage } from './bookmarks.js'
 import { jumpTo } from './utils.js';
 
+window.pdfViewerState = state;
+window.pdfJumpTo = jumpTo;
+
 const container = document.getElementById('pages-container');
 const viewport = document.getElementById('viewport');
 const fileInput = document.getElementById('file-input');
@@ -15,13 +18,17 @@ let fallbackOverlay = null;
 function setupNotes() {
     let startX = 0;
     let startY = 0;
+    let selectionBeforeBookmark = '';
 
     container.addEventListener('mousedown', (event) => {
         startX = event.clientX;
         startY = event.clientY;
+        selectionBeforeBookmark = event.altKey ? window.getSelection().toString().trim() : '';
     });
 
     container.addEventListener('mouseup', event => {
+        const selectedText = selectionBeforeBookmark;
+        selectionBeforeBookmark = '';
         // Calcula a distância que o rato percorreu (teorema de Pitágoras ou distância simples)
         const travelX = Math.abs(event.clientX - startX);
         const travelY = Math.abs(event.clientY - startY);
@@ -29,8 +36,8 @@ function setupNotes() {
         // Se viajou mais de 5 píxeis, é porque o utilizador estava a selecionar texto ou a arrastar!
         // Ignora imediatamente a criação de notas ou bookmarks!
         if (travelX > 5 || travelY > 5) return;
-        // Ignora cliques que não sejam Ctrl ou Shift
-        if (!event.ctrlKey && !event.shiftKey) {
+        // Ignora cliques sem modificadores usados pelas ferramentas
+        if (!event.ctrlKey && !event.altKey && !event.shiftKey) {
             // Fecha notas/popups abertos
             document.querySelectorAll('.sticky-note.active').forEach(note => {
                 if (!note.classList.contains('pinned')) note.classList.remove('active');
@@ -45,25 +52,13 @@ function setupNotes() {
         const x = ((event.clientX - rect.left) / rect.width) * 100;
         const y = ((event.clientY - rect.top) / rect.height) * 100;
         
-        if (event.shiftKey) {
-            const selectionObj = window.getSelection();
-            const selectionText = selectionObj.toString().trim();
-            const suggestedTitle = selectionText ? selectionText.substring(0, 30) : '';
-            
-            let targetY = y;
-            if (selectionText && selectionObj.rangeCount > 0) {
-                const range = selectionObj.getRangeAt(0);
-                const rect = range.getClientRects()[0];
-                if (rect) {
-                    const wrapperRect = wrapper.getBoundingClientRect();
-                    targetY = ((rect.top - wrapperRect.top) / wrapperRect.height) * 100;
-                }
-            }
-            
+        if (event.altKey) {
+            if (event.ctrlKey) return;
+            event.preventDefault();
+            const suggestedTitle = selectedText.substring(0, 30);
             const bookmarksOverlay = wrapper.querySelector('.bookmarks-overlay');
-            addBookmarkToUI(bookmarksOverlay, wrapper.dataset.pageNumber, x, targetY, suggestedTitle, 'bookmark');
+            addBookmarkToUI(bookmarksOverlay, wrapper.dataset.pageNumber, x, y, suggestedTitle, 'bookmark');
             saveBookmarksForPage(wrapper.dataset.pageNumber, bookmarksOverlay);
-            window.getSelection().removeAllRanges();
             return;
         }
 
@@ -128,14 +123,15 @@ async function init() {
         let decodedUrl = fileUrl;
         
         try {
+            const sourceUrl = new URL(fileUrl);
             decodedUrl = decodeURIComponent(fileUrl);
-            const isLocalBlob = decodedUrl.startsWith('blob:');
+            const isLocalBlob = sourceUrl.protocol === 'blob:';
             const uniqueId = isLocalBlob ? 'documento_local_temp' : decodedUrl;
             
             state.currentFilename = uniqueId;
 
-            const filename = decodedUrl.split('/').pop().split(/[?#]/)[0] || "documento.pdf";
-            await openSource(decodedUrl, filename);
+            const filename = decodeURIComponent(sourceUrl.pathname.split('/').pop() || '') || "documento.pdf";
+            await openSource(sourceUrl.href, filename);
             
             if (state.pdfDoc.annotationStorage.size > 0) {
                 state.pdfBytes = await state.pdfDoc.saveDocument();
@@ -157,7 +153,15 @@ async function init() {
             }
         } catch (error) {
             console.error("Erro ao carregar o PDF do URL:", error);
-            showNotification(`Não foi possível carregar o PDF: ${error.message || error}`, 'error', error.stack || '');
+            const errorMessage = error instanceof Error
+                ? error.message
+                : typeof error === 'object' && error !== null
+                    ? [error.name, error.message, error.reason, error.details, error.statusText]
+                        .filter(value => typeof value === 'string' && value)
+                        .join(': ') || 'Erro desconhecido (consulte a consola)'
+                    : String(error);
+            const errorDetails = error instanceof Error ? error.stack || errorMessage : errorMessage;
+            showNotification(`Não foi possível carregar o PDF: ${errorMessage}`, 'error', errorDetails);
             showFallbackScreen(decodedUrl, "Não foi possível carregar este PDF. Podes escolher outro ficheiro ou abrir o link no navegador.");
         }
     } else {

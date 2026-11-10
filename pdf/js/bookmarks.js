@@ -88,7 +88,7 @@ export async function updateBookmarksSidebar() {
     allBookmarks.sort((a, b) => a.pageNum === b.pageNum ? a.y - b.y : a.pageNum - b.pageNum);
 
     if (allBookmarks.length === 0) {
-        listContainer.innerHTML = '<div class="outline-item italic">Nenhum marcador criado.<br><br><b>Shift+Click</b> no PDF para criar um na margem esquerda.</div>';
+        listContainer.innerHTML = '<div class="outline-item italic">Nenhum marcador criado.<br><br><b>Alt+Click</b> no PDF para criar um na margem esquerda.</div>';
         return;
     }
 
