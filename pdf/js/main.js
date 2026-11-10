@@ -123,14 +123,15 @@ async function init() {
         let decodedUrl = fileUrl;
         
         try {
+            const sourceUrl = new URL(fileUrl);
             decodedUrl = decodeURIComponent(fileUrl);
-            const isLocalBlob = decodedUrl.startsWith('blob:');
+            const isLocalBlob = sourceUrl.protocol === 'blob:';
             const uniqueId = isLocalBlob ? 'documento_local_temp' : decodedUrl;
             
             state.currentFilename = uniqueId;
 
-            const filename = decodedUrl.split('/').pop().split(/[?#]/)[0] || "documento.pdf";
-            await openSource(decodedUrl, filename);
+            const filename = decodeURIComponent(sourceUrl.pathname.split('/').pop() || '') || "documento.pdf";
+            await openSource(sourceUrl.href, filename);
             
             if (state.pdfDoc.annotationStorage.size > 0) {
                 state.pdfBytes = await state.pdfDoc.saveDocument();
@@ -152,7 +153,15 @@ async function init() {
             }
         } catch (error) {
             console.error("Erro ao carregar o PDF do URL:", error);
-            showNotification(`Não foi possível carregar o PDF: ${error.message || error}`, 'error', error.stack || '');
+            const errorMessage = error instanceof Error
+                ? error.message
+                : typeof error === 'object' && error !== null
+                    ? [error.name, error.message, error.reason, error.details, error.statusText]
+                        .filter(value => typeof value === 'string' && value)
+                        .join(': ') || 'Erro desconhecido (consulte a consola)'
+                    : String(error);
+            const errorDetails = error instanceof Error ? error.stack || errorMessage : errorMessage;
+            showNotification(`Não foi possível carregar o PDF: ${errorMessage}`, 'error', errorDetails);
             showFallbackScreen(decodedUrl, "Não foi possível carregar este PDF. Podes escolher outro ficheiro ou abrir o link no navegador.");
         }
     } else {
