@@ -7,6 +7,9 @@ import { setupUI, setHeaderMode, showNotification } from './ui.js';
 import { addBookmarkToUI, saveBookmarksForPage } from './bookmarks.js'
 import { jumpTo } from './utils.js';
 
+window.pdfViewerState = state;
+window.pdfJumpTo = jumpTo;
+
 const container = document.getElementById('pages-container');
 const viewport = document.getElementById('viewport');
 const fileInput = document.getElementById('file-input');

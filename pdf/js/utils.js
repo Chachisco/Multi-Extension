@@ -14,6 +14,7 @@ export async function jumpTo(pageNum, options = {}) {
         htmlY = null,
         align = 'center',
         behavior = 'smooth',
+        noFlash = false,
         flashX = null,
         flashW = null,
         origin = 'baseline'
@@ -58,7 +59,7 @@ export async function jumpTo(pageNum, options = {}) {
     targetY = Math.min(targetY, maxScroll);
     viewport.scrollTo({ top: targetY, behavior: finalBehavior });
 
-    if (pdfY !== null || htmlY !== null) {
+    if ((pdfY !== null || htmlY !== null) && typeof window.flashHighlight === 'function' && !noFlash) {
         flashHighlight(pageNum, { pdfX: flashX, pdfY, htmlY, pdfW: flashW, origin });
     }
 }
