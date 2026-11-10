@@ -85,7 +85,7 @@ A search tool that works inside the PDF Viewer and on standard websites.
 
 ### Advanced Search
 
-* **`Ctrl` + `F`**: Override the native browser search and open the custom Web Search panel.
+* **`Ctrl` + `F`**: Open the custom Web Search panel; selected text becomes the query. If the panel is already open, the shortcut focuses the search field, and pressing it again while the field is focused closes the panel.
 * **`Enter`**: Jump to the next search result in the current row.
 * **`Shift` + `Enter`**: Jump to the previous search result.
 * **`Up/Down Arrows`**: When the search input is unfocused, cycle globally through all matched results chronologically.
