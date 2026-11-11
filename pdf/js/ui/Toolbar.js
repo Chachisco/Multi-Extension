@@ -215,6 +215,7 @@ export class Toolbar {
                     annotOptions?.classList.remove('hidden');
                     document.querySelectorAll('.opt-mode, .opt-mode-divider').forEach(el => el.style.display = 'none');
                     document.querySelectorAll('.drawing-canvas').forEach(c => c.classList.add('active'));
+                    document.getElementById('shape-options')?.style.setProperty('display', 'flex');
                 }
             };
         }
@@ -304,6 +305,14 @@ export class Toolbar {
             btn.onclick = () => {
                 this.state.currentAnnotationSize = Number(btn.dataset.val);
                 this._syncAnnotationOptionButtons();
+            };
+        });
+
+        document.querySelectorAll('.opt-shape').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.opt-shape').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.state.currentDrawingShape = btn.dataset.val;
             };
         });
 

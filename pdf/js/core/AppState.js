@@ -26,6 +26,7 @@ export class AppState extends EventTarget {
         this.pageRotation = 0;
         this.headerMode = 'fixed'; // 'ghost' | 'minimal' | 'fixed'
         this.focusMode = 0;          // 0: desligado, 1: lanterna, 2: régua de leitura
+        this.currentDrawingShape = 'freehand'; // 'freehand' | 'rect' | 'circle' | 'line' | 'arrow'
         this.focusSize = 150;
 
         // 3. Active Tools

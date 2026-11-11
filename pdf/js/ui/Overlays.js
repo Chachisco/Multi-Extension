@@ -524,7 +524,8 @@ export class Overlays {
         canvas.style.height = pageCanvas.style.height;
         const ctx = canvas.getContext('2d');
         canvas.classList.toggle('active', this.state.freehandActive);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Redesenha os traços existentes da página
         this._redrawPageStrokes(
             ctx,
             this.state.drawings[pageNum] || [],
@@ -533,50 +534,112 @@ export class Overlays {
             this.pendingDrawingStrokes.get(pageNum)
         );
 
+        let startPoint = null;
+        let currentPoint = null;
+
         canvas.onmousedown = e => {
-            if (!this.state.freehandActive) return;
+            if (!this.state.freehandActive || e.button !== 0) return;
             this.isDrawing = true;
             this.activeCanvas = canvas;
             this.activeCtx = ctx;
             this.currentDrawingPage = pageNum;
 
             const rect = canvas.getBoundingClientRect();
-            const point = { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height };
-            this.currentPath = [point];
+            startPoint = {
+                x: (e.clientX - rect.left) / rect.width,
+                y: (e.clientY - rect.top) / rect.height
+            };
+            currentPoint = { ...startPoint };
 
-            ctx.beginPath();
-            ctx.moveTo(point.x * canvas.width, point.y * canvas.height);
             ctx.strokeStyle = this.state.currentAnnotationColor;
             ctx.lineWidth = this.state.currentAnnotationSize;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
+
+            const shapeType = this.state.currentDrawingShape || 'freehand';
+
+            if (shapeType === 'freehand') {
+                this.currentPath = [startPoint];
+                ctx.beginPath();
+                ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
+            }
         };
 
         canvas.onmousemove = e => {
             if (!this.isDrawing || this.activeCanvas !== canvas) return;
             const rect = canvas.getBoundingClientRect();
-            const point = { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height };
-            this.currentPath.push(point);
+            currentPoint = {
+                x: (e.clientX - rect.left) / rect.width,
+                y: (e.clientY - rect.top) / rect.height
+            };
 
-            this.activeCtx.lineTo(point.x * canvas.width, point.y * canvas.height);
-            this.activeCtx.stroke();
+            const shapeType = this.state.currentDrawingShape || 'freehand';
+
+            if (shapeType === 'freehand') {
+                this.currentPath.push(currentPoint);
+                ctx.lineTo(currentPoint.x * canvas.width, currentPoint.y * canvas.height);
+                ctx.stroke();
+            } else {
+                // FORMAS: Limpa o canvas e redesenha o preview em tempo real
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                this._redrawPageStrokes(
+                    ctx,
+                    this.state.drawings[pageNum] || [],
+                    canvas.width,
+                    canvas.height,
+                    this.pendingDrawingStrokes.get(pageNum)
+                );
+
+                // Desenha a forma atual enquanto arrastas o rato
+                this._drawSingleShape(
+                    ctx,
+                    shapeType,
+                    startPoint,
+                    currentPoint,
+                    canvas.width,
+                    canvas.height,
+                    this.state.currentAnnotationColor,
+                    this.state.currentAnnotationSize
+                );
+            }
         };
 
-        const finish = () => {
-            if (!this.isDrawing) return;
+        const finish = e => {
+            if (!this.isDrawing || !startPoint) return;
             this.isDrawing = false;
-            if (this.currentPath.length >= 2) {
-                const stroke = {
+
+            const rect = canvas.getBoundingClientRect();
+            const endPoint = e ? {
+                x: (e.clientX - rect.left) / rect.width,
+                y: (e.clientY - rect.top) / rect.height
+            } : currentPoint;
+
+            const shapeType = this.state.currentDrawingShape || 'freehand';
+
+            let stroke = null;
+            if (shapeType === 'freehand' && this.currentPath.length >= 2) {
+                stroke = {
+                    type: 'freehand',
                     path: [...this.currentPath],
                     color: this.state.currentAnnotationColor,
                     size: this.state.currentAnnotationSize
                 };
-                this.state.drawings[pageNum] = this.state.drawings[pageNum] || [];
-                this.state.drawings[pageNum].push(stroke);
-                const session = this.state.currentSession;
-                storageService.savePageItems(session.filename, pageNum, 'drawings', this.state.drawings[pageNum])
-                    .catch(error => logger.error('Não foi possível guardar o desenho.', error));
+            } else if (shapeType !== 'freehand') {
+                // Guarda com os dois pontos: início e fim
+                stroke = {
+                    type: shapeType,
+                    path: [startPoint, endPoint],
+                    color: this.state.currentAnnotationColor,
+                    size: this.state.currentAnnotationSize
+                };
             }
+
+            if (stroke) {
+                this._commitDrawing(pageNum, stroke);
+            }
+
+            startPoint = null;
+            currentPoint = null;
             this.currentPath = [];
         };
 
@@ -584,18 +647,99 @@ export class Overlays {
         canvas.onmouseleave = finish;
     }
 
+    _commitDrawing(pageNum, stroke) {
+        const session = this.state.currentSession;
+        if (!session) return;
+
+        this.state.drawings[pageNum] = this.state.drawings[pageNum] || [];
+        this.state.drawings[pageNum].push(stroke);
+
+        // Grava no Storage
+        storageService.savePageItems(session.filename, pageNum, 'drawings', this.state.drawings[pageNum])
+            .catch(error => logger.error('Não foi possível guardar o desenho.', error));
+
+        // Regista no Histórico (Undo / Redo funcional para desenhos e formas!)
+        if (session.history) {
+            session.history.record({
+                label: `Desenhar ${stroke.type}`,
+                undo: async () => {
+                    const list = this.state.drawings[pageNum] || [];
+                    this.state.drawings[pageNum] = list.filter(s => s !== stroke);
+                    await storageService.savePageItems(session.filename, pageNum, 'drawings', this.state.drawings[pageNum]);
+                    this._redrawDrawingPage(pageNum);
+                },
+                redo: async () => {
+                    this.state.drawings[pageNum] = this.state.drawings[pageNum] || [];
+                    this.state.drawings[pageNum].push(stroke);
+                    await storageService.savePageItems(session.filename, pageNum, 'drawings', this.state.drawings[pageNum]);
+                    this._redrawDrawingPage(pageNum);
+                }
+            });
+        }
+    }
+
     _redrawPageStrokes(ctx, strokes, width, height, pendingStrokes = new Set()) {
         strokes.forEach(s => {
-            if (s.path.length < 2) return;
-            ctx.beginPath();
-            ctx.strokeStyle = pendingStrokes.has(s) ? '#888888' : s.color;
-            ctx.lineWidth = s.size;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.moveTo(s.path[0].x * width, s.path[0].y * height);
-            s.path.slice(1).forEach(p => ctx.lineTo(p.x * width, p.y * height));
-            ctx.stroke();
+            if (!s.path || s.path.length < 2) return;
+            const color = pendingStrokes?.has(s) ? '#888888' : s.color;
+            const shape = s.type || 'freehand';
+
+            if (shape === 'freehand') {
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = s.size;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.moveTo(s.path[0].x * width, s.path[0].y * height);
+                s.path.slice(1).forEach(p => ctx.lineTo(p.x * width, p.y * height));
+                ctx.stroke();
+            } else {
+                this._drawSingleShape(ctx, shape, s.path[0], s.path[1], width, height, color, s.size);
+            }
         });
+    }
+
+    _drawSingleShape(ctx, shape, start, end, width, height, color, size) {
+        const x0 = start.x * width;
+        const y0 = start.y * height;
+        const x1 = end.x * width;
+        const y1 = end.y * height;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+
+        if (shape === 'line') {
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+        } else if (shape === 'rect') {
+            ctx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+        } else if (shape === 'circle') {
+            const rx = Math.abs(x1 - x0) / 2;
+            const ry = Math.abs(y1 - y0) / 2;
+            const cx = (x0 + x1) / 2;
+            const cy = (y0 + y1) / 2;
+            ctx.ellipse(cx, cy, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (shape === 'arrow') {
+            // Linha principal
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+
+            // Cabeça da seta
+            const headlen = Math.max(10, size * 3);
+            const angle = Math.atan2(y1 - y0, x1 - x0);
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x1 - headlen * Math.cos(angle - Math.PI / 6), y1 - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x1 - headlen * Math.cos(angle + Math.PI / 6), y1 - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
     }
 
     async _loadDrawings(pageNum, wrapper) {
@@ -948,14 +1092,97 @@ export class Overlays {
                 const rect = target.canvas.getBoundingClientRect();
                 const canvasWidth = target.canvas.width || rect.width;
                 const radius = 8 + (Math.abs(target.stroke.size) * rect.width / canvasWidth) / 2;
+
+                // Converte coordenadas percentuais para pixels do ecrã
                 const toScreen = point => ({
                     x: rect.left + point.x * rect.width,
                     y: rect.top + point.y * rect.height
                 });
-                const path = target.stroke.path.map(toScreen);
-                if (path.length === 1) return pointSegmentDistance(path[0], start, end) <= radius;
-                return path.slice(1).some((point, index) =>
-                    segmentDistance(start, end, path[index], point) <= radius
+
+                const shape = target.stroke.type || 'freehand';
+                const path = target.stroke.path;
+                if (!path || path.length < 2) return false;
+
+                // 1. RETÂNGULO: apenas o perímetro
+                if (shape === 'rect') {
+                    const p0 = toScreen(path[0]);
+                    const p1 = toScreen(path[1]);
+                    const minX = Math.min(p0.x, p1.x);
+                    const maxX = Math.max(p0.x, p1.x);
+                    const minY = Math.min(p0.y, p1.y);
+                    const maxY = Math.max(p0.y, p1.y);
+
+                    const edges = [
+                        [{ x: minX, y: minY }, { x: maxX, y: minY }], // Borda Superior
+                        [{ x: maxX, y: minY }, { x: maxX, y: maxY }], // Borda Direita
+                        [{ x: maxX, y: maxY }, { x: minX, y: maxY }], // Borda Inferior
+                        [{ x: minX, y: maxY }, { x: minX, y: minY }]  // Borda Esquerda
+                    ];
+
+                    return edges.some(([a, b]) => segmentDistance(start, end, a, b) <= radius);
+                }
+
+                // 2. CÍRCULO / ELIPSE: apenas o aro da circunferência
+                if (shape === 'circle') {
+                    const p0 = toScreen(path[0]);
+                    const p1 = toScreen(path[1]);
+                    const cx = (p0.x + p1.x) / 2;
+                    const cy = (p0.y + p1.y) / 2;
+                    const rx = Math.abs(p1.x - p0.x) / 2;
+                    const ry = Math.abs(p1.y - p0.y) / 2;
+
+                    const steps = 24;
+                    let prevPoint = { x: cx + rx, y: cy };
+
+                    for (let i = 1; i <= steps; i++) {
+                        const angle = (i / steps) * Math.PI * 2;
+                        const currentPoint = {
+                            x: cx + rx * Math.cos(angle),
+                            y: cy + ry * Math.sin(angle)
+                        };
+                        if (segmentDistance(start, end, prevPoint, currentPoint) <= radius) {
+                            return true;
+                        }
+                        prevPoint = currentPoint;
+                    }
+                    return false;
+                }
+
+                // 3. SETA: Testa a linha principal e as duas linhas da ponta
+                if (shape === 'arrow') {
+                    const p0 = toScreen(path[0]);
+                    const p1 = toScreen(path[1]);
+                    // Linha principal
+                    if (segmentDistance(start, end, p0, p1) <= radius) return true;
+
+                    // Ponta da seta
+                    const headlen = Math.max(10, (target.stroke.size || 3) * 3);
+                    const angle = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+                    const wing1 = {
+                        x: p1.x - headlen * Math.cos(angle - Math.PI / 6),
+                        y: p1.y - headlen * Math.sin(angle - Math.PI / 6)
+                    };
+                    const wing2 = {
+                        x: p1.x - headlen * Math.cos(angle + Math.PI / 6),
+                        y: p1.y - headlen * Math.sin(angle + Math.PI / 6)
+                    };
+
+                    return segmentDistance(start, end, p1, wing1) <= radius ||
+                        segmentDistance(start, end, p1, wing2) <= radius;
+                }
+
+                // 4. LINHA RETA
+                if (shape === 'line') {
+                    const p0 = toScreen(path[0]);
+                    const p1 = toScreen(path[1]);
+                    return segmentDistance(start, end, p0, p1) <= radius;
+                }
+
+                // 5. TRAÇO LIVRE (FREEHAND): Comportamento original ponto-a-ponto
+                const screenPath = path.map(toScreen);
+                if (screenPath.length === 1) return pointSegmentDistance(screenPath[0], start, end) <= radius;
+                return screenPath.slice(1).some((point, index) =>
+                    segmentDistance(start, end, screenPath[index], point) <= radius
                 );
             },
             setPending: (target, pending) => {
