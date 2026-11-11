@@ -3,6 +3,7 @@
   "name": "PDF Viewer & Better Web Search",
   "version": "2.7.1",
   "description": "Leitor de PDF avançado e pesquisa web múltipla com Regex",
+  "default_locale": "en",
   "permissions": ["storage", "tabs", "activeTab", "downloads", "unlimitedStorage"],
   "host_permissions": ["file:///*", "http://*/*", "https://*/*"],
   "action": {

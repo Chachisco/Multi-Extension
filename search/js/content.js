@@ -1,6 +1,6 @@
 // --- ESTADO GLOBAL ---
 const MAX_COLORS = 5;
-const colorHex = ['#ffeb3b8c', '#8be28b', '#80d8ff', '#ff9f9f', '#e040fb'];
+const colorHex = ['#ffeb3bdc', '#5fe25f', '#5ccdfd', '#f98989', '#e040fb'];
 
 let searchRows = [{ id: 0, text: '', matchCase: false, wholeWord: false, isRegex: false, matches: [], currentIndex: -1 }];
 let globalMatches = []; 
@@ -8,6 +8,7 @@ let currentGlobalIndex = -1;
 
 let pdfSearchMap = [];
 let isSearchMapBuilt = false;
+let searchMapBuildId = 0;
 
 // --- 1. INJEÇÃO DA UI ---
 if (!document.getElementById('sws-panel')) {
@@ -26,6 +27,10 @@ const rowsContainer = document.getElementById('sws-rows-container');
 function getPdfViewport() { return document.getElementById('viewport'); }
 function isPdfViewer() { return getPdfViewport() !== null; }
 function getSearchRoot() { return isPdfViewer() ? document.getElementById('pages-container') : document.body; }
+function getPdfDocument() {
+    const state = window.pdfViewerState;
+    return state?.currentSession?.pdfDoc || state?.pdfDoc || null;
+}
 
 function renderRows() {
     rowsContainer.innerHTML = '';
@@ -87,37 +92,50 @@ function renderRows() {
 
 // --- 2. EXTRAÇÃO EM BACKGROUND V3.0 ---
 window.addEventListener('pdf-document-loaded', async () => {
+    const buildId = ++searchMapBuildId;
     isSearchMapBuilt = false;
     pdfSearchMap = [];
 
-    if (!window.pdfViewerState || !window.pdfViewerState.pdfDoc) return;
-    const pdfDoc = window.pdfViewerState.pdfDoc;
+    const pdfDoc = getPdfDocument();
+    if (!pdfDoc) return;
 
-    for (let i = 1; i <= pdfDoc.numPages; i++) {
-        const page = await pdfDoc.getPage(i);
-        const content = await page.getTextContent();
-        const vp = page.getViewport({ scale: 1 }); 
-        
-        let pageStr = "";
-        let mapping = [];
+    try {
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+            const page = await pdfDoc.getPage(i);
+            const content = await page.getTextContent();
+            if (buildId !== searchMapBuildId) return;
+            const vp = page.getViewport({ scale: 1 });
 
-        content.items.forEach(item => {
-            if (item.str.trim() === '') { pageStr += ' '; return; }
-            
-            const h = Math.abs(item.transform[3]);
-            mapping.push({
-                index: pageStr.length,
-                length: item.str.length,
-                xPercent: (item.transform[4] / vp.width) * 100,
-                yPercent: ((vp.height - item.transform[5] - h) / vp.height) * 100,
-                wPercent: (item.width / vp.width) * 100,
-                hPercent: (h / vp.height) * 100
+            let pageStr = '';
+            const mapping = [];
+
+            content.items.forEach(item => {
+                if (typeof item.str !== 'string') return;
+                if (item.str.trim() === '') { pageStr += ' '; return; }
+
+                const h = Math.abs(item.transform[3]);
+                mapping.push({
+                    index: pageStr.length,
+                    length: item.str.length,
+                    xPercent: (item.transform[4] / vp.width) * 100,
+                    yPercent: ((vp.height - item.transform[5] - h) / vp.height) * 100,
+                    wPercent: (item.width / vp.width) * 100,
+                    hPercent: (h / vp.height) * 100
+                });
+                pageStr += item.str;
+                pageStr += item.hasEOL ? '\n' : ' ';
             });
-            pageStr += item.str;
-            pageStr += item.hasEOL ? '\n' : ' ';
-        });
-        pdfSearchMap.push({ pageNum: i, text: pageStr, mapping });
+            pdfSearchMap.push({ pageNum: i, text: pageStr, mapping });
+        }
+    } catch (error) {
+        if (buildId === searchMapBuildId) {
+            pdfSearchMap = [];
+            console.error('Não foi possível preparar a pesquisa do PDF.', error);
+        }
+        return;
     }
+
+    if (buildId !== searchMapBuildId) return;
     isSearchMapBuilt = true;
     
     if (!panel.classList.contains('sws-hidden')) triggerSearch();
@@ -179,7 +197,6 @@ function triggerSearch() {
 // --- 4. MOTOR DE PESQUISA CORE V3.0 ---
 async function performSearch() {
     if (isPdfViewer() && !isSearchMapBuilt) {
-        setTimeout(performSearch, 500); 
         return;
     }
 
@@ -288,7 +305,7 @@ async function performSearch() {
 }
 
 function applyHighlightsPDF() {
-    const totalPages = window.pdfViewerState ? window.pdfViewerState.pdfDoc.numPages : 1;
+    const totalPages = getPdfDocument()?.numPages || 1;
     const viewport = getPdfViewport();
     const viewportRect = viewport?.getBoundingClientRect();
 
