@@ -10,10 +10,13 @@
     padding: 0 20px; z-index: 2000; color: #eee;
     transition: all 0.2s ease-in-out;
     box-sizing: border-box;
-    overflow: visible !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    justify-content: flex-start;
     user-select: none;
     -webkit-user-select: none;
     gap: 15px;
+    scrollbar-width: none;
 }
 
 #mini-header::-webkit-scrollbar {
@@ -21,7 +24,7 @@
 }
 
 .header-left, #annotation-toolbar, .zoom-controls {
-    flex-shrink: 0; 
+    flex: 0 0 auto;
 }
 
 #annotation-toolbar, .zoom-controls { 
@@ -127,7 +130,7 @@
 
 
 
-.zoom-controls { display: flex; align-items: center; gap: 4px; }
+.zoom-controls { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .zoom-controls button, #search-panel button { padding: 6px; }
 #page-input, #zoom-percent { background: #444; border: none; color: white; width: 50px; text-align: center; border-radius: 3px; }
 .divider { color: #555; margin: 0 5px; }
@@ -138,8 +141,8 @@
 }
 
 .dropdown-menu {
-    position: absolute;
-    top: 110%; /* Fica ligeiramente abaixo do header */
+    position: fixed;
+    top: 44px;
     left: 0;
     background: #1e1e1e;
     border: 1px solid #444;
@@ -148,6 +151,8 @@
     display: flex;
     flex-direction: column;
     min-width: 260px;
+    max-height: calc(100vh - 52px);
+    overflow-y: auto;
     z-index: 3000;
     overflow: hidden;
 }

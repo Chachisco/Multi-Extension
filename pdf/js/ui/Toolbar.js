@@ -24,6 +24,7 @@ export class Toolbar {
 
     _initControls() {
         this._setupHeaderButtons();
+        this._setupHeaderScrolling();
         this._setupVerticalToolButtons();
         this._setupToolOptions();
         this._setupDropdownMenu();
@@ -105,6 +106,18 @@ export class Toolbar {
     // =========================================================================
     // 1. BOTÕES DO HEADER
     // =========================================================================
+    _setupHeaderScrolling() {
+        if (!this.header) return;
+        this.header.addEventListener('wheel', event => {
+            if (event.ctrlKey || this.header.scrollWidth <= this.header.clientWidth) return;
+            const delta = event.deltaX || event.deltaY;
+            if (!delta) return;
+            this.header.scrollLeft += delta;
+            event.preventDefault();
+            event.stopPropagation();
+        }, { passive: false });
+    }
+
     _setupHeaderButtons() {
         document.getElementById('btn-header-mode')?.addEventListener('click', () => this.cycleHeaderMode());
 
@@ -313,7 +326,13 @@ export class Toolbar {
         if (btnDl && dlMenu) {
             btnDl.onclick = e => {
                 e.stopPropagation();
-                dlMenu.classList.toggle('hidden');
+                const willOpen = dlMenu.classList.contains('hidden');
+                dlMenu.classList.toggle('hidden', !willOpen);
+                if (willOpen) {
+                    const rect = btnDl.getBoundingClientRect();
+                    dlMenu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - dlMenu.offsetWidth - 8))}px`;
+                    dlMenu.style.top = `${Math.min(rect.bottom + 4, window.innerHeight - dlMenu.offsetHeight - 8)}px`;
+                }
             };
             document.addEventListener('click', () => dlMenu.classList.add('hidden'));
         }
