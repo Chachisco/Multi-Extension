@@ -174,6 +174,13 @@
 .annotation-mark.underline {
     background-color: transparent !important;
 }
+.annotation-mark.eraser-pending {
+    background-color: #8888883d !important;
+    border-bottom-color: #8888883d !important;
+    color: #8888883d !important;
+    mix-blend-mode: normal;
+    opacity: 0.8;
+}
 
 /* =========================================
    4. Desenhos livres
@@ -335,6 +342,11 @@
 .cursor-eraser * {
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='white' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 21-4.3-4.3a2.1 2.1 0 0 1 0-3L14.5 2a2.1 2.1 0 0 1 3 0L21.3 5.8a2.1 2.1 0 0 1 0 3l-11.4 11.4a2.1 2.1 0 0 1-1.5.6H7z'/%3E%3Cpath d='m15 5 4 4'/%3E%3Cpath d='m7 21h14'/%3E%3C/svg%3E") 2 20, cell !important;
 }
+.cursor-eraser .textLayer,
+.cursor-eraser .textLayer * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
 
 /* =========================================
    9. Caixas de Texto Livre
@@ -356,6 +368,10 @@
     overflow: hidden;
     font-size: calc(var(--total-scale-factor) * var(--saved-font-size, 12px));
     outline: none;
+}
+
+.free-text-box:not(.is-widget) {
+    border-color: #888;
 }
 
 .free-text-box:focus {
@@ -387,6 +403,59 @@
 
 .free-text-box.is-editing .free-text-input {
     pointer-events: auto;
+}
+
+.free-text-box.is-selected {
+    border-color: #0376db;
+    box-shadow: 0 0 0 1px rgba(3, 118, 219, 0.35);
+}
+
+.free-text-box.is-editing.is-selected {
+    box-shadow: none;
+}
+
+.pdf-selection-toolbar {
+    position: fixed;
+    z-index: 12000;
+    display: flex;
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid #555;
+    border-radius: 5px;
+    background: #252526;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.pdf-selection-toolbar[hidden] {
+    display: none;
+}
+
+.pdf-selection-toolbar button {
+    display: grid;
+    width: 32px;
+    height: 30px;
+    padding: 5px;
+    place-items: center;
+    border: 0;
+    border-radius: 3px;
+    background: #3a3a3a;
+    color: #eee;
+    cursor: pointer;
+}
+
+.pdf-selection-toolbar button svg {
+    width: 17px;
+    height: 17px;
+}
+
+.pdf-selection-toolbar button:focus-visible {
+    outline: 2px solid #65b5ff;
+    outline-offset: 1px;
+}
+
+.pdf-selection-toolbar button:hover {
+    background: #0376db;
+    color: white;
 }
 
 
@@ -426,6 +495,11 @@
 .pdf-bookmark-icon:hover { 
     transform: scale(1.1); 
     background: #888; 
+}
+
+.pdf-bookmark-icon.is-selected {
+    filter: brightness(1.4);
+    transform: scale(1.1);
 }
 
 /* O marcador na Régua (Notes Sidebar) */
