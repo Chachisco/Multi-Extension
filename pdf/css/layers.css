@@ -181,6 +181,9 @@
     mix-blend-mode: normal;
     opacity: 0.8;
 }
+.annotation-mark.underline.eraser-pending {
+    background-color: transparent !important;
+}
 
 /* =========================================
    4. Desenhos livres
@@ -418,8 +421,9 @@
     position: fixed;
     z-index: 12000;
     display: flex;
-    gap: 4px;
-    padding: 5px;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
     border: 1px solid #555;
     border-radius: 5px;
     background: #252526;
@@ -432,9 +436,9 @@
 
 .pdf-selection-toolbar button {
     display: grid;
-    width: 32px;
-    height: 30px;
-    padding: 5px;
+    width: 27px;
+    height: 27px;
+    padding: 4px;
     place-items: center;
     border: 0;
     border-radius: 3px;
@@ -444,8 +448,48 @@
 }
 
 .pdf-selection-toolbar button svg {
-    width: 17px;
-    height: 17px;
+    width: 16px;
+    height: 16px;
+}
+
+.pdf-selection-toolbar .pdf-selection-color {
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+}
+
+.pdf-selection-toolbar .pdf-selection-color.active {
+    border: 2px solid white;
+    transform: scale(1.15);
+}
+
+.pdf-selection-toolbar .pdf-selection-size {
+    background: transparent;
+}
+
+.pdf-selection-toolbar .pdf-selection-size svg {
+    width: 18px;
+    height: 18px;
+}
+
+.pdf-selection-toolbar .pdf-selection-size.active {
+    background: #444;
+    color: #ffd740;
+}
+
+.pdf-selection-toolbar .pdf-selection-size:hover {
+    background: #333;
+}
+
+.pdf-selection-divider {
+    width: 1px;
+    height: 20px;
+    flex: 0 0 1px;
+    margin: 0 2px;
+    background: #555;
 }
 
 .pdf-selection-toolbar button:focus-visible {

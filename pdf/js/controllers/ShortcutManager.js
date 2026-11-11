@@ -107,5 +107,3 @@ export class ShortcutManager {
         jumpTo(next, { align: 'top' });
     }
 }
-
-export const shortcutManager = new ShortcutManager();

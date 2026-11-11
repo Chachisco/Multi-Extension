@@ -1,6 +1,6 @@
 // --- ESTADO GLOBAL ---
 const MAX_COLORS = 5;
-const colorHex = ['#ffeb3b8c', '#8be28b', '#80d8ff', '#ff9f9f', '#e040fb'];
+const colorHex = ['#ffeb3bdc', '#5fe25f', '#5ccdfd', '#f98989', '#e040fb'];
 
 let searchRows = [{ id: 0, text: '', matchCase: false, wholeWord: false, isRegex: false, matches: [], currentIndex: -1 }];
 let globalMatches = []; 

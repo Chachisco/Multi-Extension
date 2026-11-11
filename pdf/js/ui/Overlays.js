@@ -93,6 +93,7 @@ export class Overlays {
         this.eraserController = new EraserController({
             container: this.container,
             isEnabled: () => this.state.eraserActive,
+            getHistory: () => this.state.currentSession?.history,
             onError: error => logger.error('Não foi possível aplicar a borracha.', error)
         });
         this.eraserController.registerProvider(this._createAnnotationEraserProvider());
@@ -112,7 +113,6 @@ export class Overlays {
         this.container.addEventListener('click', e => this._handlePageClick(e));
         this.container.addEventListener('mousedown', e => {
             this.pointerStart = { x: e.clientX, y: e.clientY };
-            this.selectionAtPointerStart = e.altKey ? window.getSelection()?.toString().trim() || '' : '';
         });
         this.container.addEventListener('mouseup', e => this._handleModifiedPageClick(e));
         document.addEventListener('pointerdown', e => {
@@ -128,10 +128,7 @@ export class Overlays {
         });
         this.state.addEventListener('tools-deactivated', () => this.eraserController.cancel());
 
-        // Seleção de texto para criar Destaques / Sublinhados
-        document.addEventListener('mouseup', () => {
-            if (this.state.annotationActive) this._applyTextAnnotation();
-        });
+        document.addEventListener('mouseup', event => this._handleTextSelection(event));
 
         // Atualização da régua lateral quando notas ou marcadores mudam
         window.addEventListener('notes-updated', () => {
@@ -615,11 +612,155 @@ export class Overlays {
     // =========================================================================
     // 5. DESTAQUES E SUBLINHADOS (SELEÇÃO DE TEXTO)
     // =========================================================================
-    _applyTextAnnotation() {
-        const sel = window.getSelection();
-        if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    _handleTextSelection(event) {
+        if (this.state.annotationActive) {
+            this._applyTextAnnotation();
+            return;
+        }
+        if (!event.target.closest('.textLayer')) return;
 
-        const range = sel.getRangeAt(0);
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0).cloneRange();
+        const text = selection.toString().trim();
+        const source = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+            ? range.commonAncestorContainer
+            : range.commonAncestorContainer.parentElement;
+        const wrapper = source?.closest('.page-wrapper');
+        if (!text || !wrapper || !wrapper.querySelector('.textLayer')?.contains(range.startContainer)) return;
+
+        const rect = range.getBoundingClientRect();
+        const anchor = { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+        this._showTextSelectionToolbar(anchor, range, text, wrapper);
+    }
+
+    _showTextSelectionToolbar(anchor, range, text, wrapper) {
+        const pageNum = Number(wrapper.dataset.pageNumber);
+        const addBookmark = async () => {
+            const manager = this.state.currentSession?.bookmarks;
+            if (!manager) return;
+            const pageRect = wrapper.getBoundingClientRect();
+            const y = Math.max(0, Math.min(100, ((anchor.top - pageRect.top) / pageRect.height) * 100));
+            await manager.addBookmark(pageNum, y, text.slice(0, 30));
+            this.selectionToolbar.hide();
+            window.getSelection()?.removeAllRanges();
+        };
+
+        this.selectionToolbar.showAt(anchor, [
+            {
+                label: t('selection_copy', 'Copiar'),
+                icon: 'copy',
+                onClick: async () => {
+                    await navigator.clipboard.writeText(text);
+                    logger.success(t('copied_text', 'Copiado!'));
+                    this.selectionToolbar.hide();
+                }
+            },
+            {
+                label: t('selection_bookmark', 'Criar marcador'),
+                icon: 'bookmark',
+                onClick: addBookmark
+            },
+            {
+                label: t('selection_highlight', 'Destacar'),
+                icon: 'highlight',
+                onClick: () => this._showAnnotationOptions(anchor, range, 'highlight', text, wrapper)
+            },
+            {
+                label: t('selection_underline', 'Sublinhar'),
+                icon: 'underline',
+                onClick: () => this._showAnnotationOptions(anchor, range, 'underline', text, wrapper)
+            }
+        ]);
+    }
+
+    _showAnnotationOptions(anchor, range, mode, text, wrapper) {
+        let selectedColor = this.state.currentAnnotationColor;
+        const colorButtons = [
+            ['#ffeb3b', t('color_yellow', 'Amarelo')],
+            ['#8be28b', t('color_green', 'Verde')],
+            ['#80d8ff', t('color_blue', 'Azul')],
+            ['#ff9f9f', t('color_red', 'Vermelho')]
+        ].map(([value, label]) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'pdf-selection-color';
+            button.style.backgroundColor = value;
+            button.title = `${t('selection_color', 'Cor')}: ${label}`;
+            button.setAttribute('aria-label', button.title);
+            button.setAttribute('aria-pressed', String(value === selectedColor));
+            button.classList.toggle('active', value === selectedColor);
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                selectedColor = value;
+                this.state.currentAnnotationColor = value;
+                window.dispatchEvent(new CustomEvent('annotation-tool-options-changed'));
+                colorButtons.forEach(colorButton => {
+                    const active = colorButton === button;
+                    colorButton.classList.toggle('active', active);
+                    colorButton.setAttribute('aria-pressed', String(active));
+                });
+            });
+            return button;
+        });
+
+        let selectedSize = this.state.currentAnnotationSize;
+        const sizeButtons = [
+            ['2', t('size_thin', 'Fina')],
+            ['4', t('size_medium', 'Média')],
+            ['7', t('size_thick', 'Grossa')]
+        ].map(([value, label]) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'pdf-selection-size';
+            button.title = `${t('selection_thickness', 'Espessura')}: ${label}`;
+            button.setAttribute('aria-label', button.title);
+            button.setAttribute('aria-pressed', String(Number(value) === selectedSize));
+            button.classList.toggle('active', Number(value) === selectedSize);
+            button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="${value}" stroke-linecap="round"/></svg>`;
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                selectedSize = Number(value);
+                this.state.currentAnnotationSize = selectedSize;
+                window.dispatchEvent(new CustomEvent('annotation-tool-options-changed'));
+                sizeButtons.forEach(sizeButton => {
+                    const active = sizeButton === button;
+                    sizeButton.classList.toggle('active', active);
+                    sizeButton.setAttribute('aria-pressed', String(active));
+                });
+            });
+            return button;
+        });
+
+        const divider = document.createElement('div');
+        divider.className = 'pdf-selection-divider';
+        divider.setAttribute('role', 'separator');
+
+        this.selectionToolbar.showAt(anchor, [
+            {
+                label: t('selection_apply', 'Aplicar'),
+                icon: 'apply',
+                onClick: () => {
+                    this.state.currentAnnotationColor = selectedColor;
+                    this.state.currentAnnotationSize = selectedSize;
+                    this._applyTextAnnotation(range, { mode, color: selectedColor, size: selectedSize });
+                    this.selectionToolbar.hide();
+                }
+            },
+            {
+                label: t('selection_back', 'Voltar'),
+                icon: 'back',
+                onClick: () => this._showTextSelectionToolbar(anchor, range, text, wrapper)
+            }
+        ], [...colorButtons, divider, ...sizeButtons]);
+    }
+
+    _applyTextAnnotation(rangeOverride = null, options = {}) {
+        const sel = window.getSelection();
+        if (!rangeOverride && (!sel || sel.isCollapsed || !sel.rangeCount)) return;
+
+        const range = rangeOverride || sel.getRangeAt(0);
         const source = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
             ? range.commonAncestorContainer
             : range.commonAncestorContainer.parentElement;
@@ -632,26 +773,60 @@ export class Overlays {
 
         const rects = [...range.getClientRects()].filter(r => r.width && r.height);
         const annotations = this.state.annotations[pageNum] || [];
+        const addedAnnotations = [];
+        const marks = [];
         rects.forEach(r => {
             const annotation = {
-                mode: this.state.currentAnnotationMode,
-                color: this.state.currentAnnotationColor,
-                size: this.state.currentAnnotationSize,
+                mode: options.mode || this.state.currentAnnotationMode,
+                color: options.color ?? this.state.currentAnnotationColor,
+                size: options.size ?? this.state.currentAnnotationSize,
                 x: ((r.left - wrapperRect.left) / wrapperRect.width) * 100,
                 y: ((r.top - wrapperRect.top) / wrapperRect.height) * 100,
                 width: (r.width / wrapperRect.width) * 100,
                 height: (r.height / wrapperRect.height) * 100
             };
             const mark = document.createElement('div');
-            mark.className = `annotation-mark ${this.state.currentAnnotationMode}`;
+            mark.className = `annotation-mark ${annotation.mode}`;
             this._styleAnnotation(mark, annotation);
             this.annotationElements.set(mark, { pageNum, annotation });
             layer.appendChild(mark);
             annotations.push(annotation);
+            addedAnnotations.push(annotation);
+            marks.push(mark);
         });
 
         this.state.annotations[pageNum] = annotations;
-        sel.removeAllRanges();
+        const session = this.state.currentSession;
+        if (addedAnnotations.length && session?.history) {
+            const addedSet = new Set(addedAnnotations);
+            const saveAnnotations = () => session.notes.storage.savePageItems(
+                session.filename,
+                pageNum,
+                'annotations',
+                this.state.annotations[pageNum] || []
+            );
+            session.history.record({
+                label: options.mode === 'underline' ? 'Sublinhar texto' : 'Destacar texto',
+                undo: async () => {
+                    this.state.annotations[pageNum] = (this.state.annotations[pageNum] || [])
+                        .filter(annotation => !addedSet.has(annotation));
+                    marks.forEach(mark => mark.remove());
+                    await saveAnnotations();
+                },
+                redo: async () => {
+                    const current = this.state.annotations[pageNum] || [];
+                    addedAnnotations.forEach(annotation => {
+                        if (!current.includes(annotation)) current.push(annotation);
+                    });
+                    this.state.annotations[pageNum] = current;
+                    marks.forEach(mark => {
+                        if (layer.isConnected) layer.appendChild(mark);
+                    });
+                    await saveAnnotations();
+                }
+            });
+        }
+        sel?.removeAllRanges();
         this._saveAnnotations(pageNum);
     }
 
@@ -694,17 +869,69 @@ export class Overlays {
             setPending: (target, pending) => target.element.classList.toggle('eraser-pending', pending),
             commit: async targets => {
                 const session = this.state.currentSession;
+                if (!session) throw new Error('Não há documento ativo para apagar marcações.');
                 const removedByPage = new Map();
                 targets.forEach(({ pageNum, annotation, element }) => {
-                    element.remove();
-                    if (!removedByPage.has(pageNum)) removedByPage.set(pageNum, new Set());
-                    removedByPage.get(pageNum).add(annotation);
+                    if (!removedByPage.has(pageNum)) {
+                        removedByPage.set(pageNum, {
+                            before: [...(this.state.annotations[pageNum] || [])],
+                            targets: []
+                        });
+                    }
+                    removedByPage.get(pageNum).targets.push({ annotation, element });
                 });
-                await Promise.all([...removedByPage].map(([pageNum, removed]) => {
-                    this.state.annotations[pageNum] = (this.state.annotations[pageNum] || [])
-                        .filter(annotation => !removed.has(annotation));
-                    return this._saveAnnotations(pageNum, session);
+
+                const persist = (pageNum, annotations) =>
+                    session.notes.storage.savePageItems(session.filename, pageNum, 'annotations', annotations);
+                const afterByPage = new Map([...removedByPage].map(([pageNum, page]) => {
+                    const removed = new Set(page.targets.map(target => target.annotation));
+                    return [pageNum, page.before.filter(annotation => !removed.has(annotation))];
                 }));
+
+                try {
+                    await Promise.all([...afterByPage].map(([pageNum, annotations]) => persist(pageNum, annotations)));
+                } catch (error) {
+                    const rollback = await Promise.allSettled(
+                        [...removedByPage].map(([pageNum, page]) => persist(pageNum, page.before))
+                    );
+                    const rollbackErrors = rollback
+                        .filter(result => result.status === 'rejected')
+                        .map(result => result.reason);
+                    if (rollbackErrors.length) {
+                        throw new AggregateError([error, ...rollbackErrors], 'Não foi possível concluir ou reverter a remoção das marcações.');
+                    }
+                    throw error;
+                }
+
+                afterByPage.forEach((annotations, pageNum) => {
+                    this.state.annotations[pageNum] = annotations;
+                    removedByPage.get(pageNum).targets.forEach(({ element }) => element.remove());
+                });
+
+                return {
+                    label: 'Apagar marcações',
+                    undo: async () => {
+                        await Promise.all([...removedByPage].map(([pageNum, page]) => persist(pageNum, page.before)));
+                        removedByPage.forEach((page, pageNum) => {
+                            this.state.annotations[pageNum] = [...page.before];
+                            const layer = this.container.querySelector(`#page-wrapper-${pageNum} .annotation-layer`);
+                            [...page.targets]
+                                .sort((a, b) => page.before.indexOf(a.annotation) - page.before.indexOf(b.annotation))
+                                .forEach(({ element, annotation }) => {
+                                    const index = page.before.indexOf(annotation);
+                                    layer?.insertBefore(element, layer.children[index] || null);
+                                    element.classList.remove('eraser-pending');
+                                });
+                        });
+                    },
+                    redo: async () => {
+                        await Promise.all([...afterByPage].map(([pageNum, annotations]) => persist(pageNum, annotations)));
+                        afterByPage.forEach((annotations, pageNum) => {
+                            this.state.annotations[pageNum] = annotations;
+                            removedByPage.get(pageNum).targets.forEach(({ element }) => element.remove());
+                        });
+                    }
+                };
             }
         };
     }
@@ -744,24 +971,66 @@ export class Overlays {
             },
             commit: async targets => {
                 const session = this.state.currentSession;
-                if (!session) return;
+                if (!session) throw new Error('Não há documento ativo para apagar desenhos.');
                 const removedByPage = new Map();
                 targets.forEach(({ pageNum, stroke }) => {
-                    if (!removedByPage.has(pageNum)) removedByPage.set(pageNum, new Set());
-                    removedByPage.get(pageNum).add(stroke);
+                    if (!removedByPage.has(pageNum)) {
+                        removedByPage.set(pageNum, {
+                            before: [...(this.state.drawings[pageNum] || [])],
+                            strokes: []
+                        });
+                    }
+                    removedByPage.get(pageNum).strokes.push(stroke);
                 });
-                await Promise.all([...removedByPage].map(async ([pageNum, removed]) => {
-                    const strokes = this.state.drawings[pageNum] || [];
-                    this.state.drawings[pageNum] = strokes.filter(stroke => !removed.has(stroke));
+
+                const persist = (pageNum, strokes) =>
+                    storageService.savePageItems(session.filename, pageNum, 'drawings', strokes);
+                const afterByPage = new Map([...removedByPage].map(([pageNum, page]) => {
+                    const removed = new Set(page.strokes);
+                    return [pageNum, page.before.filter(stroke => !removed.has(stroke))];
+                }));
+
+                try {
+                    await Promise.all([...afterByPage].map(([pageNum, strokes]) => persist(pageNum, strokes)));
+                } catch (error) {
+                    const rollback = await Promise.allSettled(
+                        [...removedByPage].map(([pageNum, page]) => persist(pageNum, page.before))
+                    );
+                    const rollbackErrors = rollback
+                        .filter(result => result.status === 'rejected')
+                        .map(result => result.reason);
+                    if (rollbackErrors.length) {
+                        throw new AggregateError([error, ...rollbackErrors], 'Não foi possível concluir ou reverter a remoção dos desenhos.');
+                    }
+                    throw error;
+                }
+
+                const redraw = pageNum => {
                     this.pendingDrawingStrokes.delete(pageNum);
                     this._redrawDrawingPage(pageNum);
-                    await storageService.savePageItems(
-                        session.filename,
-                        pageNum,
-                        'drawings',
-                        this.state.drawings[pageNum]
-                    );
-                }));
+                };
+                afterByPage.forEach((strokes, pageNum) => {
+                    this.state.drawings[pageNum] = strokes;
+                    redraw(pageNum);
+                });
+
+                return {
+                    label: 'Apagar desenhos',
+                    undo: async () => {
+                        await Promise.all([...removedByPage].map(([pageNum, page]) => persist(pageNum, page.before)));
+                        removedByPage.forEach((page, pageNum) => {
+                            this.state.drawings[pageNum] = [...page.before];
+                            redraw(pageNum);
+                        });
+                    },
+                    redo: async () => {
+                        await Promise.all([...afterByPage].map(([pageNum, strokes]) => persist(pageNum, strokes)));
+                        afterByPage.forEach((strokes, pageNum) => {
+                            this.state.drawings[pageNum] = strokes;
+                            redraw(pageNum);
+                        });
+                    }
+                };
             }
         };
     }
@@ -928,7 +1197,7 @@ export class Overlays {
     // 9. AUXILIARES: ARRASTO GENÉRICO E CLIQUE NA PÁGINA
     // =========================================================================
     _handlePageClick(e) {
-        if (!this.state.textModeActive) return;
+        if (!this.state.textModeActive || e.ctrlKey || e.metaKey) return;
         const wrapper = e.target.closest('.page-wrapper');
         if (!wrapper || e.target.closest('.free-text-box')) return;
 
@@ -948,32 +1217,70 @@ export class Overlays {
     }
 
     async _handleModifiedPageClick(e) {
-        if ((!e.ctrlKey && !e.metaKey && !e.altKey) || !this.pointerStart) return;
+        if (!this.pointerStart) return;
         const distance = Math.hypot(e.clientX - this.pointerStart.x, e.clientY - this.pointerStart.y);
-        const selectedText = this.selectionAtPointerStart;
         this.pointerStart = null;
-        this.selectionAtPointerStart = '';
         if (distance > 5) return;
 
         const wrapper = e.target.closest('.page-wrapper');
         if (!wrapper || e.target.closest('.sticky-note, .free-text-box, .pdf-links-layer')) return;
+        if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        this._showCreationToolbar(e, wrapper);
+    }
+
+    _showCreationToolbar(event, wrapper) {
         const pageNum = Number(wrapper.dataset.pageNumber);
         const rect = wrapper.getBoundingClientRect();
-        const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-        const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+        const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
+        const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
+        const anchor = {
+            left: event.clientX,
+            top: event.clientY,
+            right: event.clientX,
+            bottom: event.clientY,
+            width: 0,
+            height: 0
+        };
 
-        if (e.altKey && !e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            const manager = this.state.currentSession?.bookmarks;
-            if (!manager) return;
-            await manager.addBookmark(pageNum, y, selectedText.slice(0, 30));
-            return;
-        }
-
-        if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            await this.createStickyNote(pageNum, x, y);
-        }
+        this.selectionToolbar.showAt(anchor, [
+            {
+                label: t('selection_note', 'Criar nota'),
+                icon: 'note',
+                onClick: async () => {
+                    this.selectionToolbar.hide();
+                    await this.createStickyNote(pageNum, x, y);
+                }
+            },
+            {
+                label: t('selection_bookmark', 'Criar marcador'),
+                icon: 'bookmark',
+                onClick: async () => {
+                    this.selectionToolbar.hide();
+                    const manager = this.state.currentSession?.bookmarks;
+                    if (!manager) return;
+                    await manager.addBookmark(pageNum, y);
+                }
+            },
+            {
+                label: t('selection_textbox', 'Criar caixa de texto'),
+                icon: 'textbox',
+                onClick: async () => {
+                    this.selectionToolbar.hide();
+                    const manager = this.state.currentSession?.notes;
+                    if (!manager) return;
+                    const box = await manager.addTextBox(pageNum, {
+                        x,
+                        y,
+                        size: this.state.currentTextSize,
+                        color: this.state.currentTextColor,
+                        align: this.state.currentTextAlign,
+                        isWidget: this.state.currentTextIsWidget
+                    });
+                    this._createTextBoxDOM(wrapper.querySelector('.textboxes-overlay'), pageNum, box, true);
+                }
+            }
+        ]);
     }
 
     async createStickyNote(pageNum = null, x = 50, y = 15) {

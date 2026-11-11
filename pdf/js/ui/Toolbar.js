@@ -281,19 +281,29 @@ export class Toolbar {
         // Cores de Destaque
         document.querySelectorAll('.opt-color').forEach(btn => {
             btn.onclick = () => {
-                document.querySelectorAll('.opt-color').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
                 this.state.currentAnnotationColor = btn.dataset.val;
+                this._syncAnnotationOptionButtons();
             };
         });
 
         // Tamanho de Pincel/Sublinhado
         document.querySelectorAll('.opt-size').forEach(btn => {
             btn.onclick = () => {
-                document.querySelectorAll('.opt-size').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                this.state.currentAnnotationSize = parseInt(btn.dataset.val, 10);
+                this.state.currentAnnotationSize = Number(btn.dataset.val);
+                this._syncAnnotationOptionButtons();
             };
+        });
+
+        window.addEventListener('annotation-tool-options-changed', () => this._syncAnnotationOptionButtons());
+        this._syncAnnotationOptionButtons();
+    }
+
+    _syncAnnotationOptionButtons() {
+        document.querySelectorAll('.opt-color').forEach(button => {
+            button.classList.toggle('active', button.dataset.val === this.state.currentAnnotationColor);
+        });
+        document.querySelectorAll('.opt-size').forEach(button => {
+            button.classList.toggle('active', Number(button.dataset.val) === this.state.currentAnnotationSize);
         });
     }
 

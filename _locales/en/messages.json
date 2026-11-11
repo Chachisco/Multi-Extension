@@ -80,5 +80,22 @@
   "btn_input_confirm": { "message": "Confirm" },
   "selection_edit": { "message": "Edit" },
   "selection_delete": { "message": "Delete" },
-  "bookmark_rename": { "message": "Bookmark name:" }
+  "bookmark_rename": { "message": "Bookmark name:" },
+  "selection_copy": { "message": "Copy selected text" },
+  "selection_bookmark": { "message": "Bookmark this location" },
+  "selection_highlight": { "message": "Highlight text" },
+  "selection_underline": { "message": "Underline text" },
+  "selection_note": { "message": "Create a note here" },
+  "selection_textbox": { "message": "Create a text box here" },
+  "selection_apply": { "message": "Apply annotation" },
+  "selection_back": { "message": "Back to actions" },
+  "selection_color": { "message": "Annotation color" },
+  "selection_thickness": { "message": "Annotation thickness" },
+  "color_yellow": { "message": "Yellow" },
+  "color_green": { "message": "Green" },
+  "color_blue": { "message": "Blue" },
+  "color_red": { "message": "Red" },
+  "size_thin": { "message": "Thin" },
+  "size_medium": { "message": "Medium" },
+  "size_thick": { "message": "Thick" }
 }

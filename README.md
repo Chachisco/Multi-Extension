@@ -78,8 +78,7 @@ A search tool that works inside the PDF Viewer and on standard websites.
 * **`Shift` + `Click`**:
   * On an internal link or sidebar item: Opens the **Reference Preview** modal.
   * On a Note's Copy button: Copies the **RAW Markdown** code instead of Rich Text.
-* **`Alt` + `Click` (on the PDF)**: Create a bookmark at the clicked location. If text is selected, it is used as the bookmark title.
-* **`Ctrl` + `Click` (on empty space)**: Create a new sticky note at the mouse location.
+* **`Ctrl` + `Click`** (or **`Command` + `Click`** on macOS) on the PDF: Opens a compact menu to create a sticky note, bookmark, or text box at that location.
 * **Drag Note**: Click and hold the yellow marker to reposition it.
 * **Delete Note**: Focus on a note and press `Ctrl` + `Delete` (or `Backspace`), or click the trash bin icon.
 

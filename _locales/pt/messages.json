@@ -80,5 +80,22 @@
   "btn_input_confirm": { "message": "Confirmar" },
   "selection_edit": { "message": "Editar" },
   "selection_delete": { "message": "Apagar" },
-  "bookmark_rename": { "message": "Nome do marcador:" }
+  "bookmark_rename": { "message": "Nome do marcador:" },
+  "selection_copy": { "message": "Copiar texto" },
+  "selection_bookmark": { "message": "Criar marcador" },
+  "selection_highlight": { "message": "Destacar texto" },
+  "selection_underline": { "message": "Sublinhar texto" },
+  "selection_note": { "message": "Criar nota aqui" },
+  "selection_textbox": { "message": "Criar caixa de texto aqui" },
+  "selection_apply": { "message": "Aplicar marcação" },
+  "selection_back": { "message": "Voltar às ações" },
+  "selection_color": { "message": "Cor da marcação" },
+  "selection_thickness": { "message": "Espessura da marcação" },
+  "color_yellow": { "message": "Amarelo" },
+  "color_green": { "message": "Verde" },
+  "color_blue": { "message": "Azul" },
+  "color_red": { "message": "Vermelho" },
+  "size_thin": { "message": "Fina" },
+  "size_medium": { "message": "Média" },
+  "size_thick": { "message": "Grossa" }
 }

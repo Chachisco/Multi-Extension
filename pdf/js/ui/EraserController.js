@@ -5,10 +5,11 @@ function isPageTarget(target) {
 }
 
 export class EraserController {
-    constructor({ container, isEnabled, onError }) {
+    constructor({ container, isEnabled, onError, getHistory }) {
         this.container = container;
         this.isEnabled = isEnabled;
         this.onError = onError;
+        this.getHistory = getHistory;
         this.providers = new Set();
         this.stroke = null;
         this.suppressNextClick = false;
@@ -88,6 +89,23 @@ export class EraserController {
                 : [];
         });
         const results = await Promise.allSettled(commits.map(commit => commit.promise));
+        const historyActions = results
+            .filter(result => result.status === 'fulfilled' && result.value)
+            .map(result => result.value)
+            .filter(action => typeof action.undo === 'function' && typeof action.redo === 'function');
+        const history = this.getHistory?.();
+        if (history && historyActions.length) {
+            const labels = [...new Set(historyActions.map(action => action.label?.replace(/^Apagar /, '')).filter(Boolean))];
+            history.record({
+                label: `Apagar ${labels.join(' e ') || 'itens'}`,
+                undo: async () => {
+                    for (const action of [...historyActions].reverse()) await action.undo();
+                },
+                redo: async () => {
+                    for (const action of historyActions) await action.redo();
+                }
+            });
+        }
         results.forEach((result, index) => {
             if (result.status !== 'rejected') return;
             commits[index].targets.forEach(target => commits[index].provider.setPending(target, false));
