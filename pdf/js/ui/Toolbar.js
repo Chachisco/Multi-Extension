@@ -180,6 +180,8 @@ export class Toolbar {
 
         const textOptions = document.getElementById('text-options');
         const annotOptions = document.getElementById('annotation-options');
+        const shapeOptions = document.getElementById('shape-options');
+
 
         const deactivateAll = () => {
             this.state.deactivateAllTools();
@@ -214,8 +216,8 @@ export class Toolbar {
                     document.body.classList.add('cursor-pen');
                     annotOptions?.classList.remove('hidden');
                     document.querySelectorAll('.opt-mode, .opt-mode-divider').forEach(el => el.style.display = 'none');
+                    shapeOptions?.style.setProperty('display', 'flex');
                     document.querySelectorAll('.drawing-canvas').forEach(c => c.classList.add('active'));
-                    document.getElementById('shape-options')?.style.setProperty('display', 'flex');
                 }
             };
         }
@@ -230,6 +232,7 @@ export class Toolbar {
                     document.body.classList.add('cursor-pen');
                     annotOptions?.classList.remove('hidden');
                     document.querySelectorAll('.opt-mode, .opt-mode-divider').forEach(el => el.style.display = '');
+                    shapeOptions?.style.setProperty('display', 'none');
                 }
             };
         }
