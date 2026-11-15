@@ -28,9 +28,9 @@ export async function jumpTo(pageNum, options = {}) {
 
     if (!wrapper || !viewport) return;
     if (pageInput) pageInput.value = pageNum;
-    const filename = appState.currentSession?.filename;
-    if (filename) {
-        storageService.adapter.set(filename, pageNum)
+    const documentId = appState.currentSession?.id;
+    if (documentId) {
+        storageService.adapter.set(documentId, pageNum)
             .catch(error => logger.error('Não foi possível guardar a última página.', error));
     }
 

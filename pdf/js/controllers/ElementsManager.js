@@ -4,9 +4,9 @@ import { pdfParser } from '../services/PdfParser.js';
 
 
 export class ElementsManager extends EventTarget {
-    constructor(filename, storage = storageService) {
+    constructor(documentId, storage = storageService) {
         super();
-        this.filename = filename;
+        this.documentId = documentId;
         this.storage = storage;
         this.automaticElements = []; // Detetados no texto do PDF
         this.manualElements = [];    // Criados pelo utilizador
@@ -27,7 +27,7 @@ export class ElementsManager extends EventTarget {
     }
 
     async loadManualElements() {
-        const allPages = await this.storage.loadAllForFile(this.filename, 'elements');
+        const allPages = await this.storage.loadAllForDocument(this.documentId, 'elements');
         this.manualElements = [];
 
         for (const { pageNum, data } of allPages) {
@@ -60,9 +60,9 @@ export class ElementsManager extends EventTarget {
 
         this.manualElements.push(newEl);
 
-        const pageItems = await this.storage.loadPageItems(this.filename, pageNum, 'elements');
+        const pageItems = await this.storage.loadPageItems(this.documentId, pageNum, 'elements');
         pageItems.push(newEl.toJSON());
-        await this.storage.savePageItems(this.filename, pageNum, 'elements', pageItems);
+        await this.storage.savePageItems(this.documentId, pageNum, 'elements', pageItems);
 
         this._emitChange();
         return newEl;
@@ -71,9 +71,9 @@ export class ElementsManager extends EventTarget {
     async removeManualElement(elementId, pageNum) {
         this.manualElements = this.manualElements.filter(e => e.id !== elementId);
         
-        const pageItems = await this.storage.loadPageItems(this.filename, pageNum, 'elements');
+        const pageItems = await this.storage.loadPageItems(this.documentId, pageNum, 'elements');
         const updated = pageItems.filter(item => item.id !== elementId);
-        await this.storage.savePageItems(this.filename, pageNum, 'elements', updated);
+        await this.storage.savePageItems(this.documentId, pageNum, 'elements', updated);
 
         this._emitChange();
     }

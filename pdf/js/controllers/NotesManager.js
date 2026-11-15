@@ -3,9 +3,9 @@ import { FreeTextBox } from '../models/TextBox.js';
 import { storageService } from '../services/StorageService.js';
 
 export class NotesManager extends EventTarget {
-    constructor(filename, history, storage = storageService) {
+    constructor(documentId, history, storage = storageService) {
         super();
-        this.filename = filename;
+        this.documentId = documentId;
         this.storage = storage;
         this.history = history;
         this.notesCache = new Map();     // pageNum -> StickyNote[]
@@ -20,7 +20,7 @@ export class NotesManager extends EventTarget {
             return this.notesCache.get(pageNum);
         }
 
-        const raw = await this.storage.loadPageItems(this.filename, pageNum, 'notes');
+        const raw = await this.storage.loadPageItems(this.documentId, pageNum, 'notes');
         const notes = raw.map(item => StickyNote.fromJSON(item, pageNum));
         this.notesCache.set(pageNum, notes);
         return notes;
@@ -31,7 +31,7 @@ export class NotesManager extends EventTarget {
         const note = new StickyNote({ pageNum, x, y, text, isPinned });
         notes.push(note);
 
-        await this.storage.savePageItems(this.filename, pageNum, 'notes', notes);
+        await this.storage.savePageItems(this.documentId, pageNum, 'notes', notes);
 
         this.history.record({
             label: 'Adicionar Nota',
@@ -41,7 +41,7 @@ export class NotesManager extends EventTarget {
             redo: async () => {
                 const list = await this.loadNotesForPage(pageNum);
                 list.push(note);
-                await this.storage.savePageItems(this.filename, pageNum, 'notes', list);
+                await this.storage.savePageItems(this.documentId, pageNum, 'notes', list);
                 this._emitNotesChange();
             }
         });
@@ -56,7 +56,7 @@ export class NotesManager extends EventTarget {
         if (!note) return false;
 
         updaterFn(note);
-        await this.storage.savePageItems(this.filename, pageNum, 'notes', notes);
+        await this.storage.savePageItems(this.documentId, pageNum, 'notes', notes);
         this._emitNotesChange();
         return true;
     }
@@ -69,7 +69,7 @@ export class NotesManager extends EventTarget {
 
         const removed = notes[idx];
         const updatedNotes = notes.filter((_, index) => index !== idx);
-        await this.storage.savePageItems(this.filename, pageNum, 'notes', updatedNotes);
+        await this.storage.savePageItems(this.documentId, pageNum, 'notes', updatedNotes);
         notes.splice(0, notes.length, ...updatedNotes);
 
         if (recordHistory) {
@@ -79,7 +79,7 @@ export class NotesManager extends EventTarget {
                     const list = await this.loadNotesForPage(pageNum);
                     const restored = [...list];
                     restored.splice(Math.min(idx, restored.length), 0, removed);
-                    await this.storage.savePageItems(this.filename, pageNum, 'notes', restored);
+                    await this.storage.savePageItems(this.documentId, pageNum, 'notes', restored);
                     list.splice(0, list.length, ...restored);
                     this._emitNotesChange();
                 },
@@ -101,12 +101,12 @@ export class NotesManager extends EventTarget {
             return this.textBoxesCache.get(pageNum);
         }
 
-        const raw = await this.storage.loadPageItems(this.filename, pageNum, 'textboxes');
+        const raw = await this.storage.loadPageItems(this.documentId, pageNum, 'textboxes');
         const boxes = raw
             .map(item => FreeTextBox.fromJSON(item, pageNum))
             .filter(box => box.isWidget || box.text.trim());
         if (boxes.length !== raw.length) {
-            await this.storage.savePageItems(this.filename, pageNum, 'textboxes', boxes);
+            await this.storage.savePageItems(this.documentId, pageNum, 'textboxes', boxes);
         }
         this.textBoxesCache.set(pageNum, boxes);
         return boxes;
@@ -117,14 +117,14 @@ export class NotesManager extends EventTarget {
         const box = new FreeTextBox({ pageNum, ...params });
         boxes.push(box);
 
-        await this.storage.savePageItems(this.filename, pageNum, 'textboxes', boxes);
+        await this.storage.savePageItems(this.documentId, pageNum, 'textboxes', boxes);
         this.history.record({
             label: 'Adicionar caixa de texto',
             undo: async () => this.deleteTextBox(pageNum, box.id, false),
             redo: async () => {
                 const list = await this.loadTextBoxesForPage(pageNum);
                 list.push(box);
-                await this.storage.savePageItems(this.filename, pageNum, 'textboxes', list);
+                await this.storage.savePageItems(this.documentId, pageNum, 'textboxes', list);
                 this._emitTextBoxesChange(true);
             }
         });
@@ -135,7 +135,7 @@ export class NotesManager extends EventTarget {
     async saveTextBoxes(pageNum, boxesList, shouldRefresh = false) {
         const savedBoxes = boxesList.filter(box => box.isWidget || box.text?.trim());
         this.textBoxesCache.set(pageNum, savedBoxes);
-        await this.storage.savePageItems(this.filename, pageNum, 'textboxes', savedBoxes);
+        await this.storage.savePageItems(this.documentId, pageNum, 'textboxes', savedBoxes);
         this._emitTextBoxesChange(shouldRefresh);
     }
 
@@ -145,7 +145,7 @@ export class NotesManager extends EventTarget {
         if (index === -1) return false;
         const removed = boxes[index];
         const updated = boxes.filter(box => box.id !== boxId);
-        await this.storage.savePageItems(this.filename, pageNum, 'textboxes', updated);
+        await this.storage.savePageItems(this.documentId, pageNum, 'textboxes', updated);
         boxes.splice(0, boxes.length, ...updated);
 
         if (recordHistory) {
@@ -155,7 +155,7 @@ export class NotesManager extends EventTarget {
                     const list = await this.loadTextBoxesForPage(pageNum);
                     const restored = [...list];
                     restored.splice(Math.min(index, restored.length), 0, removed);
-                    await this.storage.savePageItems(this.filename, pageNum, 'textboxes', restored);
+                    await this.storage.savePageItems(this.documentId, pageNum, 'textboxes', restored);
                     list.splice(0, list.length, ...restored);
                     this._emitTextBoxesChange(true);
                 },
