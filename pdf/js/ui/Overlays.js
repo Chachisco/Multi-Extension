@@ -655,7 +655,7 @@ export class Overlays {
         this.state.drawings[pageNum].push(stroke);
 
         // Grava no Storage
-        storageService.savePageItems(session.filename, pageNum, 'drawings', this.state.drawings[pageNum])
+        storageService.savePageItems(session.id, pageNum, 'drawings', this.state.drawings[pageNum])
             .catch(error => logger.error('Não foi possível guardar o desenho.', error));
 
         // Regista no Histórico (Undo / Redo funcional para desenhos e formas!)
@@ -665,13 +665,13 @@ export class Overlays {
                 undo: async () => {
                     const list = this.state.drawings[pageNum] || [];
                     this.state.drawings[pageNum] = list.filter(s => s !== stroke);
-                    await storageService.savePageItems(session.filename, pageNum, 'drawings', this.state.drawings[pageNum]);
+                    await storageService.savePageItems(session.id, pageNum, 'drawings', this.state.drawings[pageNum]);
                     this._redrawDrawingPage(pageNum);
                 },
                 redo: async () => {
                     this.state.drawings[pageNum] = this.state.drawings[pageNum] || [];
                     this.state.drawings[pageNum].push(stroke);
-                    await storageService.savePageItems(session.filename, pageNum, 'drawings', this.state.drawings[pageNum]);
+                    await storageService.savePageItems(session.id, pageNum, 'drawings', this.state.drawings[pageNum]);
                     this._redrawDrawingPage(pageNum);
                 }
             });
@@ -747,7 +747,7 @@ export class Overlays {
         const canvas = wrapper.querySelector('.drawing-canvas');
         if (!session || !canvas) return;
         this.state.drawings[pageNum] = await session.notes.storage.loadPageItems(
-            session.filename,
+            session.id,
             pageNum,
             'drawings'
         );
@@ -944,7 +944,7 @@ export class Overlays {
         if (addedAnnotations.length && session?.history) {
             const addedSet = new Set(addedAnnotations);
             const saveAnnotations = () => session.notes.storage.savePageItems(
-                session.filename,
+                session.id,
                 pageNum,
                 'annotations',
                 this.state.annotations[pageNum] || []
@@ -990,7 +990,7 @@ export class Overlays {
         const layer = wrapper.querySelector('.annotation-layer');
         if (!session || !layer) return;
 
-        const annotations = await session.notes.storage.loadPageItems(session.filename, pageNum, 'annotations');
+        const annotations = await session.notes.storage.loadPageItems(session.id, pageNum, 'annotations');
         this.state.annotations[pageNum] = annotations;
         layer.innerHTML = '';
         annotations.forEach(annotation => {
@@ -1026,7 +1026,7 @@ export class Overlays {
                 });
 
                 const persist = (pageNum, annotations) =>
-                    session.notes.storage.savePageItems(session.filename, pageNum, 'annotations', annotations);
+                    session.notes.storage.savePageItems(session.id, pageNum, 'annotations', annotations);
                 const afterByPage = new Map([...removedByPage].map(([pageNum, page]) => {
                     const removed = new Set(page.targets.map(target => target.annotation));
                     return [pageNum, page.before.filter(annotation => !removed.has(annotation))];
@@ -1211,7 +1211,7 @@ export class Overlays {
                 });
 
                 const persist = (pageNum, strokes) =>
-                    storageService.savePageItems(session.filename, pageNum, 'drawings', strokes);
+                    storageService.savePageItems(session.id, pageNum, 'drawings', strokes);
                 const afterByPage = new Map([...removedByPage].map(([pageNum, page]) => {
                     const removed = new Set(page.strokes);
                     return [pageNum, page.before.filter(stroke => !removed.has(stroke))];
@@ -1279,7 +1279,7 @@ export class Overlays {
     _saveAnnotations(pageNum, session = this.state.currentSession) {
         if (!session) return;
         return session.notes.storage.savePageItems(
-            session.filename,
+            session.id,
             pageNum,
             'annotations',
             this.state.annotations[pageNum] || []
@@ -1391,8 +1391,8 @@ export class Overlays {
         this.notesSidebar.innerHTML = '';
         const total = this.state.currentSession.pdfDoc.numPages;
 
-        const notes = await this.state.currentSession.notes.storage.loadAllForFile(
-            this.state.currentSession.filename,
+        const notes = await this.state.currentSession.notes.storage.loadAllForDocument(
+            this.state.currentSession.id,
             'notes'
         );
         notes.forEach(({ pageNum, data }) => data.forEach(note => {

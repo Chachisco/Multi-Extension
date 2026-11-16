@@ -3,13 +3,13 @@ import { storageService } from '../services/StorageService.js';
 
 export class BookmarkManager extends EventTarget {
     /**
-     * @param {string} filename - O identificador único deste PDF
+     * @param {string} documentId - O identificador único deste PDF
      * @param {HistoryManager} history
      * @param {StorageService} [storage]
      */
-    constructor(filename, history, storage = storageService) {
+    constructor(documentId, history, storage = storageService) {
         super();
-        this.filename = filename;
+        this.documentId = documentId;
         this.history = history;
         this.storage = storage;
         this.cache = new Map(); // pageNum -> Bookmark[]
@@ -18,7 +18,7 @@ export class BookmarkManager extends EventTarget {
     async loadPageBookmarks(pageNum) {
         if (this.cache.has(pageNum)) return this.cache.get(pageNum);
 
-        const rawList = await this.storage.loadPageItems(this.filename, pageNum, 'bookmarks');
+        const rawList = await this.storage.loadPageItems(this.documentId, pageNum, 'bookmarks');
         const bookmarks = rawList
             .filter(item => !item.type || item.type === 'bookmark')
             .map(item => Bookmark.fromJSON(item, pageNum));
@@ -28,7 +28,7 @@ export class BookmarkManager extends EventTarget {
     }
 
     async getAllBookmarks() {
-        const pages = await this.storage.loadAllForFile(this.filename, 'bookmarks');
+        const pages = await this.storage.loadAllForDocument(this.documentId, 'bookmarks');
         const bookmarks = [];
 
         pages.forEach(({ pageNum, data }) => {
@@ -119,6 +119,6 @@ export class BookmarkManager extends EventTarget {
 
     async _persistPage(pageNum) {
         const list = this.cache.get(pageNum) || [];
-        await this.storage.savePageItems(this.filename, pageNum, 'bookmarks', list);
+        await this.storage.savePageItems(this.documentId, pageNum, 'bookmarks', list);
     }
 }

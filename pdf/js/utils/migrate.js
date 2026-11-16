@@ -49,3 +49,47 @@ export async function migrateLegacyStorage(storageAdapter) {
         await storageAdapter.setMultiple(updates);
     }
 }
+
+/**
+ * Migrates extension data from a path-based key to a document ID.
+ * @param {StorageAdapter} storageAdapter
+ * @param {string} oldPath - Previous path-based storage key
+ * @param {string} documentId - Document ID
+ */
+export async function migratePathToDocumentId(storageAdapter, oldPath, documentId) {
+    if (!documentId || !oldPath || oldPath === documentId) return;
+
+    const all = await storageAdapter.getAll();
+    const newPrefix = `${documentId}_pg`;
+    const oldPrefixPath = `${oldPath}_pg`;
+    const keysToMigrate = Object.keys(all).filter(k => k.startsWith(oldPrefixPath));
+
+    const updates = {};
+    const keysToDelete = [];
+
+    keysToMigrate.forEach(oldKey => {
+        const suffix = oldKey.substring(oldPrefixPath.length);
+        const newKey = `${newPrefix}${suffix}`;
+        if (suffix && !Object.hasOwn(all, newKey)) {
+            updates[newKey] = all[oldKey];
+            keysToDelete.push(oldKey);
+        }
+    });
+
+    for (const [oldKey, newKey] of [
+        [oldPath, documentId],
+        [`${oldPath}_zoom`, `${documentId}_zoom`],
+        [`${oldPath}_rotation`, `${documentId}_rotation`]
+    ]) {
+        if (Object.hasOwn(all, oldKey) && !Object.hasOwn(all, newKey)) {
+            updates[newKey] = all[oldKey];
+            keysToDelete.push(oldKey);
+        }
+    }
+
+    if (Object.keys(updates).length > 0) {
+        await storageAdapter.setMultiple(updates);
+        await storageAdapter.removeMultiple(keysToDelete);
+        console.log(`[Migração] Migradas com sucesso ${Object.keys(updates).length} chaves para o ID: ${documentId}`);
+    }
+}

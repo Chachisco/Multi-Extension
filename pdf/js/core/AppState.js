@@ -10,6 +10,7 @@ export class AppState extends EventTarget {
         /*
           Estrutura da currentSession:
           {
+             id: string,
              filename: string,
              pdfDoc: PDFDocumentProxy,
              pdfBytes: ArrayBuffer,

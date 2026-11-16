@@ -44,9 +44,9 @@ export class Toolbar {
             if (!Number.isInteger(pageNum) || pageNum < 1) return;
             if (this.pageInput) this.pageInput.value = pageNum;
             this.lastReportedPage = pageNum;
-            const filename = this.state.currentSession?.filename;
-            if (filename) {
-                this.engine.storage?.adapter?.set(filename, pageNum)
+            const documentId = this.state.currentSession?.id;
+            if (documentId) {
+                this.engine.storage?.adapter?.set(documentId, pageNum)
                     .catch(error => logger.error('Não foi possível guardar a última página.', error));
             }
         });

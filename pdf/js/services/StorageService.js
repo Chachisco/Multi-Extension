@@ -167,29 +167,29 @@ export class StorageService {
     }
 
     // key generator
-    _prefix(filename) {
-        return `${filename}_pg`;
+    _prefix(documentId) {
+        return `${documentId}_pg`;
     }
 
-    _key(filename, pageNum, type) {
-        return `${this._prefix(filename)}${pageNum}_${type}`;
+    _key(documentId, pageNum, type) {
+        return `${this._prefix(documentId)}${pageNum}_${type}`;
     }
 
-    async loadPageItems(filename, pageNum, type) {
-        const key = this._key(filename, pageNum, type);
+    async loadPageItems(documentId, pageNum, type) {
+        const key = this._key(documentId, pageNum, type);
         const data = await this.adapter.get(key);
         return Array.isArray(data) ? data : [];
     }
 
-    async savePageItems(filename, pageNum, type, items) {
-        const key = this._key(filename, pageNum, type);
+    async savePageItems(documentId, pageNum, type, items) {
+        const key = this._key(documentId, pageNum, type);
         const serializable = items.map(item => (typeof item.toJSON === 'function' ? item.toJSON() : item));
         await this.adapter.set(key, serializable);
     }
 
-    async loadAllForFile(filename, typeSuffix) {
+    async loadAllForDocument(documentId, typeSuffix) {
         const all = await this.adapter.getAll();
-        const prefix = this._prefix(filename);
+        const prefix = this._prefix(documentId);
         const results = [];
 
         for (const [key, val] of Object.entries(all)) {
@@ -205,9 +205,9 @@ export class StorageService {
     }
 
     // Migration / reordering (used in page order edits)
-    async syncAfterPageEdit(filename, action, p1, p2, keepNotes = false) {
+    async syncAfterPageEdit(documentId, action, p1, p2, keepNotes = false) {
         const items = await this.adapter.getAll();
-        const prefix = this._prefix(filename);
+        const prefix = this._prefix(documentId);
         const newStorage = {};
         const keysToRemove = [];
 
@@ -266,13 +266,13 @@ export class StorageService {
     /**
      * Register or updates a doc in the annotated PDFs index
      */
-    async registerDocument(filename, metadata = {}) {
+    async registerDocument(documentId, metadata = {}) {
         const indexKey = 'unipdf_documents_index';
         const index = (await this.adapter.get(indexKey)) || {};
         
-        index[filename] = {
-            filename,
-            title: metadata.title || filename,
+        index[documentId] = {
+            id: documentId,
+            title: metadata.title || documentId,
             lastOpened: Date.now(),
             pageCount: metadata.pageCount || 0,
             ...metadata
@@ -289,17 +289,38 @@ export class StorageService {
         return (await this.adapter.get(indexKey)) || {};
     }
 
+    async copyDocumentData(sourceId, targetId) {
+        if (!sourceId || !targetId || sourceId === targetId) {
+            throw new Error('É necessário indicar IDs de documento diferentes para copiar os dados.');
+        }
+
+        const all = await this.adapter.getAll();
+        const sourcePrefix = this._prefix(sourceId);
+        const targetPrefix = this._prefix(targetId);
+        const copies = {};
+        for (const [key, value] of Object.entries(all)) {
+            if (key.startsWith(sourcePrefix)) {
+                copies[`${targetPrefix}${key.slice(sourcePrefix.length)}`] = value;
+            }
+        }
+
+        if (Object.keys(copies).length > 0) {
+            await this.adapter.setMultiple(copies);
+        }
+        return Object.keys(copies).length;
+    }
+
     /**
      * Deletes extension data associated to a PDF
      */
-    async purgeDocument(filename) {
+    async purgeDocument(documentId) {
         const all = await this.adapter.getAll();
-        const prefix = `${filename}_`;
+        const prefix = `${documentId}_`;
         const keysToDelete = Object.keys(all).filter(k => k.startsWith(prefix));
         
         const indexKey = 'unipdf_documents_index';
         const index = (await this.adapter.get(indexKey)) || {};
-        delete index[filename];
+        delete index[documentId];
         
         keysToDelete.push(indexKey);
         await this.adapter.removeMultiple(keysToDelete);

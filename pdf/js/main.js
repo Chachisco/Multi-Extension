@@ -50,10 +50,11 @@ async function init() {
     setupFileInput();
 
     // 4. Carrega o ficheiro PDF
-    const fileUrl = new URLSearchParams(window.location.search).get('file');
+    const urlParams = new URLSearchParams(window.location.search);
+    const fileUrl = urlParams.get('file');
 
     if (fileUrl) {
-        await loadPdfFromUrl(fileUrl);
+        await loadPdfFromUrl(fileUrl, urlParams.get('name'));
     } else {
         showFallbackScreen(null, t('no_file_opened', 'Nenhum documento aberto. Escolhe um ficheiro do teu computador.'));
     }
@@ -62,7 +63,7 @@ async function init() {
 // =========================================================================
 // 2. CARREGAMENTO DO FICHEIRO PDF
 // =========================================================================
-async function loadPdfFromUrl(fileUrl) {
+async function loadPdfFromUrl(fileUrl, requestedFilename = null) {
     let decodedUrl = fileUrl;
     try {
         const sourceUrl = new URL(fileUrl);
@@ -70,7 +71,9 @@ async function loadPdfFromUrl(fileUrl) {
         currentSourceUrl = sourceUrl.href;
 
         const isLocalBlob = sourceUrl.protocol === 'blob:';
-        const filename = decodeURIComponent(sourceUrl.pathname.split('/').pop() || '') || 'documento.pdf';
+        const filename = requestedFilename ||
+            decodeURIComponent(sourceUrl.pathname.split('/').pop() || '') ||
+            'documento.pdf';
         const uniqueId = isLocalBlob ? `temp_${Date.now()}` : decodedUrl;
 
         logger.setDocument(filename);
@@ -80,7 +83,7 @@ async function loadPdfFromUrl(fileUrl) {
         hideFallbackScreen();
 
         // Restaura estado anterior de visualização (zoom, rotação, última página)
-        await restoreViewerState(uniqueId);
+        await restoreViewerState(appState.currentSession.id);
 
     } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -94,10 +97,10 @@ async function loadPdfFromUrl(fileUrl) {
     }
 }
 
-async function restoreViewerState(filename) {
-    const zoomKey = `${filename}_zoom`;
-    const rotKey = `${filename}_rotation`;
-    const lastPageKey = filename;
+async function restoreViewerState(documentId) {
+    const zoomKey = `${documentId}_zoom`;
+    const rotKey = `${documentId}_rotation`;
+    const lastPageKey = documentId;
 
     const saved = await storageService.adapter.getMultiple([zoomKey, rotKey, lastPageKey]);
 
@@ -176,17 +179,57 @@ async function getCurrentPdfBytes(pdfDoc) {
         : pdfDoc.getData();
 }
 
+function createDocumentId() {
+    return `doc_${crypto.randomUUID()}`;
+}
+
+function confirmSignedPdfExport(session) {
+    return !session.isSigned || confirm(t(
+        'signed_pdf_edit_confirm',
+        'Este PDF tem uma assinatura digital. A edição irá invalidá-la. Queres continuar?'
+    ));
+}
+
+async function addDocumentIdToPdf(data, documentId) {
+    if (!window.PDFLib) throw new Error('A biblioteca de edição de PDF não está disponível.');
+
+    const pdfDoc = await window.PDFLib.PDFDocument.load(data);
+    const savedKeywords = pdfDoc.getKeywords();
+    const keywords = Array.isArray(savedKeywords)
+        ? savedKeywords
+        : savedKeywords
+            ? [savedKeywords]
+            : [];
+    pdfDoc.setKeywords([
+        ...keywords.filter(keyword => !/UniPDF-ID:/i.test(keyword)),
+        `UniPDF-ID:${documentId}`
+    ]);
+    return pdfDoc.save();
+}
+
 async function downloadDocument(useSaveAs = false) {
     const session = appState.currentSession;
     if (!session?.pdfDoc) return;
+    if (!confirmSignedPdfExport(session)) return;
 
     try {
-        const data = await getCurrentPdfBytes(session.pdfDoc);
+        const documentId = useSaveAs ? createDocumentId() : session.id;
+        const data = await addDocumentIdToPdf(await getCurrentPdfBytes(session.pdfDoc), documentId);
         const blob = new Blob([data], { type: 'application/pdf' });
-        const name = document.title !== 'UniPDF Pro' ? document.title : 'documento.pdf';
+        const name = session.filename || document.title || 'documento.pdf';
 
         const downloadedFilename = await triggerBrowserDownload(blob, name, useSaveAs);
-        if (downloadedFilename) logger.success(t('file_saved', 'Documento guardado com sucesso.'));
+        if (!downloadedFilename) return;
+
+        await storageService.registerDocument(documentId, {
+            title: downloadedFilename,
+            pageCount: session.pdfDoc.numPages
+        });
+        if (useSaveAs) {
+            logger.success(t('file_saved_as', 'Cópia nova guardada: $1', [downloadedFilename]));
+        } else {
+            logger.success(t('file_saved', 'Documento guardado com sucesso.'));
+        }
     } catch (e) {
         logger.error(t('save_failed', 'Erro ao guardar o documento.'), e);
     }
@@ -195,34 +238,25 @@ async function downloadDocument(useSaveAs = false) {
 async function exportDocumentWithNotes() {
     const session = appState.currentSession;
     if (!session?.pdfDoc) return;
-    if (typeof chrome === 'undefined' || !chrome.downloads) {
-        logger.error('A exportação de notas requer a extensão e a API de transferências do browser.');
-        return;
-    }
+    if (!confirmSignedPdfExport(session)) return;
 
     try {
-        const data = await getCurrentPdfBytes(session.pdfDoc);
+        const exportedDocumentId = createDocumentId();
+        const data = await addDocumentIdToPdf(await getCurrentPdfBytes(session.pdfDoc), exportedDocumentId);
         const blob = new Blob([data], { type: 'application/pdf' });
-        const baseName = (session.displayTitle || session.filename || 'documento.pdf').replace(/\.pdf$/i, '');
-        const newFilename = await downloadAndGetFilename(blob, `Exportado_${baseName}.pdf`, true);
+        const baseName = (session.filename || 'documento.pdf').replace(/\.pdf$/i, '');
+
+        const newFilename = await triggerBrowserDownload(blob, `Exportado_${baseName}.pdf`, true);
         if (!newFilename) return;
 
-        const exportedDocumentId = `${newFilename}_${blob.size}`;
-        const allItems = await storageService.adapter.getAll();
-        const oldPrefix = `${session.filename}_pg`;
-        const newPrefix = `${exportedDocumentId}_pg`;
-        const copiedItems = {};
-        for (const [key, value] of Object.entries(allItems)) {
-            if (key.startsWith(oldPrefix)) {
-                copiedItems[`${newPrefix}${key.slice(oldPrefix.length)}`] = value;
-            }
-        }
-        if (Object.keys(copiedItems).length) await storageService.adapter.setMultiple(copiedItems);
+        await storageService.copyDocumentData(session.id, exportedDocumentId);
+
         await storageService.registerDocument(exportedDocumentId, {
             title: newFilename,
             pageCount: session.pdfDoc.numPages
         });
-        logger.success(t('notes_exported', 'PDF exportado com as notas e anotações associadas.'));
+
+        logger.success(t('notes_exported', 'Nova versão criada com notas copiadas: $1', [newFilename]));
     } catch (error) {
         logger.error(t('notes_export_failed', 'Não foi possível exportar o PDF com as notas.'), error);
     }
@@ -304,9 +338,9 @@ async function handleMergePDF(newPdfBytes, insertAtPage) {
 
         const finalBytes = await mainPdf.save();
         if (insertIdx < totalMain) {
-            await storageService.syncAfterPageEdit(session.filename, 'INSERT', insertIdx + 1, numNew);
+            await storageService.syncAfterPageEdit(session.id, 'INSERT', insertIdx + 1, numNew);
         }
-        await pdfEngine.loadDocument(finalBytes, session.filename);
+        await pdfEngine.loadDocument(finalBytes, session.filename, session.filename, session.id);
         logger.success(t('merge_complete', 'PDF fundido com sucesso!'));
 
     } catch (e) {
@@ -343,7 +377,7 @@ async function handlePageEditRequest({ action, pageNum, from, to }) {
 
     let keepNotes = false;
     if (action === 'delete') {
-        const notes = await storageService.loadPageItems(session.filename, sourcePage, 'notes');
+        const notes = await storageService.loadPageItems(session.id, sourcePage, 'notes');
         if (notes.length) {
             keepNotes = !confirm(t(
                 'confirm_delete_page_notes',
@@ -371,8 +405,8 @@ async function handlePageEditRequest({ action, pageNum, from, to }) {
         const pages = await reordered.copyPages(pdfDoc, indices);
         pages.forEach(page => reordered.addPage(page));
         const bytes = await reordered.save();
-        await storageService.syncAfterPageEdit(session.filename, 'MOVE', sourcePage, targetPage);
-        await pdfEngine.loadDocument(bytes, session.filename, session.displayTitle);
+        await storageService.syncAfterPageEdit(session.id, 'MOVE', sourcePage, targetPage);
+        await pdfEngine.loadDocument(bytes, session.filename, session.filename, session.id);
         requestAnimationFrame(() => jumpTo(targetPage, { align: 'top', behavior: 'auto' }));
         logger.success(t('pdf_page_edit_success', 'Página atualizada com sucesso.'));
         return;
@@ -380,9 +414,9 @@ async function handlePageEditRequest({ action, pageNum, from, to }) {
 
     const bytes = await pdfDoc.save();
     if (action === 'delete') {
-        await storageService.syncAfterPageEdit(session.filename, 'DELETE', sourcePage, null, keepNotes);
+        await storageService.syncAfterPageEdit(session.id, 'DELETE', sourcePage, null, keepNotes);
     }
-    await pdfEngine.loadDocument(bytes, session.filename, session.displayTitle);
+    await pdfEngine.loadDocument(bytes, session.filename, session.filename, session.id);
     requestAnimationFrame(() => jumpTo(action === 'delete' ? Math.max(1, sourcePage - 1) : sourcePage, {
         align: 'top',
         behavior: 'auto'
@@ -404,7 +438,8 @@ async function handleBurnInPreview() {
         const pdfDoc = await PDFDocument.load(baseData);
         await drawStoredOverlays(pdfDoc);
 
-        const finalBytes = await pdfDoc.save();
+        const documentId = createDocumentId();
+        const finalBytes = await addDocumentIdToPdf(await pdfDoc.save(), documentId);
         const blob = new Blob([finalBytes], { type: 'application/pdf' });
         const previewUrl = URL.createObjectURL(blob);
         if (requestId !== burnInPreviewRequestId) {
@@ -413,7 +448,16 @@ async function handleBurnInPreview() {
         }
 
         modals.openBurnInPreview(previewUrl, () => {
+            if (!confirmSignedPdfExport(session)) return;
             triggerBrowserDownload(blob, `BurnIn_${document.title}`, true)
+                .then(async downloadedFilename => {
+                    if (!downloadedFilename) return;
+                    await storageService.registerDocument(documentId, {
+                        title: downloadedFilename,
+                        pageCount: session.pdfDoc.numPages
+                    });
+                    logger.success(t('file_saved_as', 'Cópia nova guardada: $1', [downloadedFilename]));
+                })
                 .catch(error => logger.error(t('save_failed', 'Erro ao guardar o documento.'), error));
         });
         if (modals.btnPreviewConfirm) modals.btnPreviewConfirm.disabled = false;
@@ -440,7 +484,7 @@ async function drawStoredOverlays(pdfDoc) {
     const PDFLib = window.PDFLib;
     const allItems = await storageService.adapter.getAll();
     const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-    const prefix = `${session.filename}_pg`;
+    const prefix = `${session.id}_pg`;
     const noteExportType = document.querySelector('input[name="note-export-type"]:checked')?.value || 'native';
 
     for (let index = 0; index < pdfDoc.getPageCount(); index++) {
@@ -583,20 +627,33 @@ function setupFileInput() {
         const file = fileInput.files?.[0];
         if (!file) return;
 
+        fileInput.value = '';
+        const blobUrl = URL.createObjectURL(file);
+        const viewerUrl = new URL(window.location.href);
+        viewerUrl.searchParams.delete('fileId');
+        viewerUrl.searchParams.set('file', blobUrl);
+        viewerUrl.searchParams.set('name', file.name);
+        const newTab = window.open(viewerUrl.href, '_blank');
+
+        if (newTab) {
+            logger.info(`A abrir numa nova tab: ${file.name}`);
+            return;
+        }
+
+        URL.revokeObjectURL(blobUrl);
         try {
             const buffer = await file.arrayBuffer();
-            const uniqueName = `${file.name}_${file.size}`;
-            await pdfEngine.loadDocument(buffer, uniqueName, file.name);
+            const uniqueKey = `${file.name}_${file.size}`;
+            await pdfEngine.loadDocument(buffer, uniqueKey, file.name);
             currentSourceUrl = null;
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.delete('file');
+            currentUrl.searchParams.delete('fileId');
+            window.history.replaceState(window.history.state, '', currentUrl.href);
             hideFallbackScreen();
+            logger.info(`Ficheiro local aberto: ${file.name}`);
         } catch (e) {
             logger.error('Erro ao abrir ficheiro local', e);
-            const reason = e instanceof Error ? e.message : String(e);
-            showFallbackScreen(null, t(
-                'error_opening_local_pdf',
-                'Não foi possível abrir o ficheiro escolhido: $1',
-                [reason]
-            ));
         }
     };
 }

@@ -5,7 +5,7 @@ import { BookmarkManager } from '../controllers/BookmarkManager.js';
 import { ElementsManager } from '../controllers/ElementsManager.js';
 import { NotesManager } from '../controllers/NotesManager.js';
 import { storageService } from '../services/StorageService.js';
-import { migrateLegacyStorage } from '../utils/migrate.js';
+import { migrateLegacyStorage, migratePathToDocumentId } from '../utils/migrate.js';
 import { jumpTo } from '../utils/navigation.js';
 import { logger } from '../services/LoggerService.js';
 
@@ -69,7 +69,7 @@ export class PdfEngine {
     /**
      * Loads a new PDF
      */
-    async loadDocument(source, filename, displayTitle = filename) {
+    async loadDocument(source, sourceKey, displayTitle = sourceKey, documentId = null) {
         // 1. Limpa renderizações anteriores
         Object.values(this.state.renderTasks).forEach(t => t?.cancel());
         Object.values(this.state.textLayerTasks).forEach(t => t?.cancel());
@@ -92,6 +92,16 @@ export class PdfEngine {
         });
 
         const pdfDoc = await loadingTask.promise;
+        const documentFingerprint = pdfDoc.fingerprints?.[0] || pdfDoc.fingerprint || sourceKey;
+        let embeddedDocumentId = null;
+        try {
+            const metadata = await pdfDoc.getMetadata();
+            embeddedDocumentId = String(metadata.info?.Keywords || '')
+                .match(/UniPDF-ID:([A-Za-z0-9_-]+)/i)?.[1] || null;
+        } catch (error) {
+            logger.warn('Não foi possível ler a identidade guardada no PDF.', error);
+        }
+        const id = documentId || embeddedDocumentId || documentFingerprint;
 
         await migrateLegacyStorage(this.storage.adapter);
         let isSigned = false;
@@ -110,15 +120,17 @@ export class PdfEngine {
             }
         }
 
+        await migratePathToDocumentId(this.storage.adapter, sourceKey, id);
+
         // 3. Creates a session with his managers
         const history = new HistoryManager();
-        const bookmarks = new BookmarkManager(filename, history, this.storage);
-        const elements = new ElementsManager(filename, this.storage);
-        const notes = new NotesManager(filename, history, this.storage);
+        const bookmarks = new BookmarkManager(id, history, this.storage);
+        const elements = new ElementsManager(id, this.storage);
+        const notes = new NotesManager(id, history, this.storage);
 
         this.state.setSession({
-            filename,
-            displayTitle,
+            id,
+            filename: displayTitle,
             pdfDoc,
             pdfBytes: preservedPdfBytes,
             isSigned,
@@ -129,7 +141,7 @@ export class PdfEngine {
         });
 
         // 4. Regista no storage index
-        await this.storage.registerDocument(filename, { pageCount: pdfDoc.numPages });
+        await this.storage.registerDocument(id, { title: displayTitle, pageCount: pdfDoc.numPages });
 
         // 5. Prepara a grelha de páginas (Geometria Instantânea)
         await this._setupPageWrappers(pdfDoc);
@@ -139,7 +151,7 @@ export class PdfEngine {
         elements.loadManualElements().catch(error => logger.error('Não foi possível carregar elementos guardados.', error));
 
         document.title = displayTitle || 'UniPDF Pro';
-        window.dispatchEvent(new CustomEvent('pdf-document-loaded', { detail: { filename, numPages: pdfDoc.numPages } }));
+        window.dispatchEvent(new CustomEvent('pdf-document-loaded', { detail: { filename: displayTitle, numPages: pdfDoc.numPages } }));
 
         return pdfDoc;
     }
