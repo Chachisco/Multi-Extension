@@ -6,7 +6,7 @@ export function parseRichText(str) {
     // code blocks
     const codeBlocks = [];
     text = text.replace(/`([^`]+)`/g, (_, code) => {
-        const id = `___CODE_${codeBlocks.length}___`;
+        const id = `@@CODE${codeBlocks.length}@@`;
         const safeCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         codeBlocks.push(`<code style="background: rgba(0,0,0,0.08); padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 11.5px; color: #b9770e; word-break: break-all;">${safeCode}</code>`);
         return id;
@@ -16,7 +16,7 @@ export function parseRichText(str) {
     const urlBlocks = [];
     const urlRegex = /(https?:\/\/[^\s<]+)/g;
     text = text.replace(urlRegex, (url) => {
-        const id = `___URL_${urlBlocks.length}___`;
+        const id = `@@URL${urlBlocks.length}@@`;
         urlBlocks.push(`<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #0376db; text-decoration: underline; word-break: break-all;">${url}</a>`);
         return id;
     });
@@ -110,10 +110,10 @@ export function parseRichText(str) {
     html = html.replace(/\n/g, '<br>');
 
     codeBlocks.forEach((codeHtml, i) => {
-        html = html.replace(`___CODE_${i}___`, codeHtml);
+        html = html.replaceAll(`@@CODE${i}@@`, codeHtml);
     });
     urlBlocks.forEach((urlHtml, i) => {
-        html = html.replace(`___URL_${i}___`, urlHtml);
+        html = html.replaceAll(`@@URL${i}@@`, urlHtml);
     });
 
     return html;
