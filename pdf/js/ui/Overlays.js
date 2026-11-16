@@ -375,6 +375,14 @@ export class Overlays {
 
         if (box.isWidget) el.classList.add('is-widget');
 
+        // 1. Rich Text / LaTeX layer
+        const display = document.createElement('div');
+        display.className = 'free-text-display';
+        display.style.color = box.color;
+        display.style.textAlign = box.align;
+        display.innerHTML = box.text ? parseRichText(box.text) : '';
+
+        // 2. Writing layer (Textarea)
         const textarea = document.createElement('textarea');
         textarea.className = 'free-text-input';
         textarea.value = box.text;
@@ -382,6 +390,10 @@ export class Overlays {
         textarea.style.textAlign = box.align;
         textarea.placeholder = box.isWidget ? t('widget_placeholder', 'Campo de Formulário') : t('write_placeholder', 'Escreve...');
 
+        // if widget, only textarea
+        if (!box.isWidget) {
+            el.appendChild(display);
+        }
         el.appendChild(textarea);
         overlay.appendChild(el);
 
@@ -390,6 +402,9 @@ export class Overlays {
             box.text = textarea.value;
             box.width = el.style.width;
             box.height = el.style.height;
+            if (!box.isWidget) {
+                display.innerHTML = box.text ? parseRichText(box.text) : '';
+            }
             saveQueue = saveQueue.then(async () => {
                 const manager = this.state.currentSession?.notes;
                 if (!manager) return;
@@ -417,8 +432,7 @@ export class Overlays {
                     icon: 'edit',
                     onClick: () => {
                         this.selectionToolbar.hide();
-                        el.classList.add('is-editing');
-                        textarea.focus();
+                        startTextEditing();
                     }
                 },
                 {
@@ -440,7 +454,9 @@ export class Overlays {
             showSelectionToolbar();
             this.selectionToolbar.hide();
             el.classList.add('is-editing');
+            textarea.style.display = 'block';
             textarea.focus();
+            textarea.select();
         };
 
         el.ondblclick = startTextEditing;
@@ -464,28 +480,16 @@ export class Overlays {
 
         textarea.onblur = async () => {
             el.classList.remove('is-editing');
+            if (!box.isWidget) {
+                display.innerHTML = box.text ? parseRichText(box.text) : '';
+            }
+
             if (textarea.value.trim() === '' && !box.isWidget) {
                 this._clearSelection();
                 el.remove();
                 resizeObserver.disconnect();
                 await saveQueue;
                 await this._removeTextBox(pageNum, box.id);
-            } else if (this.selectedObject === el) {
-                this.selectionToolbar.show(el, [
-                    { label: t('selection_edit', 'Editar'), icon: 'edit', onClick: startTextEditing },
-                    {
-                        label: t('selection_delete', 'Apagar'),
-                        icon: 'delete',
-                        onClick: async () => {
-                            await saveQueue;
-                            const deleted = await this._removeTextBox(pageNum, box.id);
-                            if (!deleted) return;
-                            this._clearSelection();
-                            el.remove();
-                            resizeObserver.disconnect();
-                        }
-                    }
-                ]);
             }
         };
 
