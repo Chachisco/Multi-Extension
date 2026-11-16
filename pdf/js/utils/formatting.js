@@ -1,11 +1,32 @@
 export function parseRichText(str) {
     if (!str) return '';
-    
-    let html = str
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') 
-        .replace(/\n/g, '<br>');
 
-    // Setas e Lógica
+    let text = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // code blocks
+    const codeBlocks = [];
+    text = text.replace(/`([^`]+)`/g, (_, code) => {
+        const id = `___CODE_${codeBlocks.length}___`;
+        const safeCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        codeBlocks.push(`<code style="background: rgba(0,0,0,0.08); padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 11.5px; color: #b9770e; word-break: break-all;">${safeCode}</code>`);
+        return id;
+    });
+
+    // links
+    const urlBlocks = [];
+    const urlRegex = /(https?:\/\/[^\s<]+)/g;
+    text = text.replace(urlRegex, (url) => {
+        const id = `___URL_${urlBlocks.length}___`;
+        urlBlocks.push(`<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #0376db; text-decoration: underline; word-break: break-all;">${url}</a>`);
+        return id;
+    });
+
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // Arrows and logic
     html = html.replace(/&lt;=&gt;/g, '⇔')
                .replace(/=&gt;/g, '⇒')
                .replace(/&lt;-/g, '←')
@@ -60,12 +81,11 @@ export function parseRichText(str) {
         '/degree': '°', '/angle': '∠', '/perp': '⊥', '/parallel': '∥', '/aleph': 'ℵ'
     };
     
-    Object.keys(symbolsMap).forEach(key => {
+     Object.keys(symbolsMap).forEach(key => {
         html = html.replace(new RegExp(key, 'g'), symbolsMap[key]);
     });
 
-    // Formatação Markdown Base
-    html = html.replace(/`([^`]+)`/g, '<code style="background: rgba(0,0,0,0.08); padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 11.5px; color: #b9770e;">$1</code>');
+    // Markdown Basic
     html = html.replace(/__(?!\s)(.*?)(?<!\s)__/g, '<u>$1</u>');
     html = html.replace(/\*\*(?!\s)(.*?)(?<!\s)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*(?!\s)(.*?)(?<!\s)\*/g, '<em>$1</em>');
@@ -73,12 +93,28 @@ export function parseRichText(str) {
     html = html.replace(/\[ \]/g, '<input type="checkbox" disabled style="margin: 0 4px 0 0; vertical-align: middle;">');
     html = html.replace(/\[[xX]\]/g, '<input type="checkbox" checked disabled style="margin: 0 4px 0 0; vertical-align: middle;">');
 
-    // Subscritos e Sobrescritos (Matemática)
     const base = '([a-zA-Z0-9α-ωΑ-Ω)\\]])';
-    html = html.replace(new RegExp(base + '_\\\[([^\\]]+)\\\]', 'g'), '$1<sub>$2</sub>');
-    html = html.replace(new RegExp(base + '\\\^\\\[([^\\]]+)\\\]', 'g'), '$1<sup>$2</sup>');
+
+    // LaTeX normal with {}: x_{i,t} ou a^{fk}_{nk}
+    html = html.replace(new RegExp(base + '_\\{([^\\}]+)\\}', 'g'), '$1<sub>$2</sub>');
+    html = html.replace(new RegExp(base + '\\^\\{([^\\}]+)\\}', 'g'), '$1<sup>$2</sup>');
+
+    // html = html.replace(new RegExp(base + '_\\[([^\\]]+)\\]', 'g'), '$1<sub>$2</sub>');
+    // html = html.replace(new RegExp(base + '\\^\\[([^\\]]+)\\]', 'g'), '$1<sup>$2</sup>');
+
+    // Simple formatting: x_2 ou x^2
     html = html.replace(new RegExp(base + '_([a-zA-Z0-9]+)', 'g'), '$1<sub>$2</sub>');
-    html = html.replace(new RegExp(base + '\\\^([a-zA-Z0-9]+)', 'g'), '$1<sup>$2</sup>');
+    html = html.replace(new RegExp(base + '\\^([a-zA-Z0-9]+)', 'g'), '$1<sup>$2</sup>');
+
+    // 9. Quebras de Linha
+    html = html.replace(/\n/g, '<br>');
+
+    codeBlocks.forEach((codeHtml, i) => {
+        html = html.replace(`___CODE_${i}___`, codeHtml);
+    });
+    urlBlocks.forEach((urlHtml, i) => {
+        html = html.replace(`___URL_${i}___`, urlHtml);
+    });
 
     return html;
 }
