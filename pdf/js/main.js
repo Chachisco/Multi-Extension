@@ -216,15 +216,17 @@ async function downloadDocument(useSaveAs = false) {
         const documentId = useSaveAs ? createDocumentId() : session.id;
         const data = await addDocumentIdToPdf(await getCurrentPdfBytes(session.pdfDoc), documentId);
         const blob = new Blob([data], { type: 'application/pdf' });
-        const name = session.filename || document.title || 'documento.pdf';
+        
+        const name = sanitizeFilename(session.filename || document.title);
 
-        const downloadedFilename = await triggerBrowserDownload(blob, name, useSaveAs);
+        const downloadedFilename = await downloadAs(blob, name, useSaveAs);
         if (!downloadedFilename) return;
 
         await storageService.registerDocument(documentId, {
             title: downloadedFilename,
             pageCount: session.pdfDoc.numPages
         });
+
         if (useSaveAs) {
             logger.success(t('file_saved_as', 'Cópia nova guardada: $1', [downloadedFilename]));
         } else {
@@ -246,8 +248,8 @@ async function exportDocumentWithNotes() {
         const blob = new Blob([data], { type: 'application/pdf' });
         const baseName = (session.filename || 'documento.pdf').replace(/\.pdf$/i, '');
 
-        const newFilename = await triggerBrowserDownload(blob, `Exportado_${baseName}.pdf`, true);
-        if (!newFilename) return;
+        const newFilename = await downloadAs(blob, `Exportado_${baseName}.pdf`, true);
+        newFilename = sanitizeFilename(newFilename)
 
         await storageService.copyDocumentData(session.id, exportedDocumentId);
 
@@ -262,49 +264,70 @@ async function exportDocumentWithNotes() {
     }
 }
 
-function downloadAndGetFilename(blob, filename, saveAs) {
+function sanitizeFilename(name) {
+    if (!name) return 'documento.pdf';
+    let clean = name.split(/[\\/]/).pop();
+    clean = clean.replace(/[<>:"\/\\|?*]+/g, '_').trim();
+    if (!clean.toLowerCase().endsWith('.pdf')) {
+        clean += '.pdf';
+    }
+    return clean;
+}
+
+function downloadAs(blob, filename, saveAs) {
     return new Promise(resolve => {
+        const safeFilename = sanitizeFilename(filename);
         const url = URL.createObjectURL(blob);
+        
         let downloadId = null;
         let settled = false;
-        let downloadedFilename = null;
-        const listener = delta => {
-            if (delta.id !== downloadId) return;
-            if (delta.filename?.current) downloadedFilename = delta.filename.current;
-            if (delta.state?.current === 'interrupted') finish(null);
-            if (delta.state?.current === 'complete' && downloadedFilename) {
-                finish(downloadedFilename.split(/[\\/]/).pop());
-            }
-        };
+
         const finish = result => {
             if (settled) return;
             settled = true;
-            chrome.downloads.onChanged.removeListener(listener);
+            chrome.downloads.onChanged.removeListener(onChangedListener);
+            if (chrome.downloads.onDeterminingFilename) {
+                chrome.downloads.onDeterminingFilename.removeListener(determiningListener);
+            }
             URL.revokeObjectURL(url);
             resolve(result);
         };
 
-        chrome.downloads.download({ url, filename, saveAs }, id => {
+        const determiningListener = (item, suggest) => {
+            if (item.id === downloadId) {
+                suggest({ filename: safeFilename, conflictAction: 'uniquify' });
+            }
+        };
+
+        if (chrome.downloads.onDeterminingFilename) {
+            chrome.downloads.onDeterminingFilename.addListener(determiningListener);
+        }
+
+        const onChangedListener = delta => {
+            if (delta.id !== downloadId) return;
+            if (delta.state?.current === 'interrupted') finish(null);
+            if (delta.state?.current === 'complete') {
+                chrome.downloads.search({ id: downloadId }, items => {
+                    const finalPath = items?.[0]?.filename;
+                    const finalName = finalPath ? finalPath.split(/[\\/]/).pop() : safeFilename;
+                    finish(finalName);
+                });
+            }
+        };
+
+        chrome.downloads.onChanged.addListener(onChangedListener);
+
+        chrome.downloads.download({
+            url: url,
+            filename: safeFilename,
+            saveAs: saveAs
+        }, id => {
             if (chrome.runtime.lastError || !id) {
-                logger.error('O browser não iniciou o download.', chrome.runtime.lastError?.message || 'Sem ID de download.');
+                logger.error('O browser não iniciou o download.', chrome.runtime.lastError?.message || 'Sem ID.');
                 finish(null);
                 return;
             }
             downloadId = id;
-            chrome.downloads.onChanged.addListener(listener);
-            chrome.downloads.search({ id }, items => {
-                if (chrome.runtime.lastError) {
-                    logger.error('Não foi possível obter o nome do ficheiro transferido.', chrome.runtime.lastError.message);
-                    finish(null);
-                    return;
-                }
-                const item = items?.[0];
-                if (item?.filename) downloadedFilename = item.filename;
-                if (item?.state === 'interrupted') finish(null);
-                else if (item?.state === 'complete' && downloadedFilename) {
-                    finish(downloadedFilename.split(/[\\/]/).pop());
-                }
-            });
         });
     });
 }
@@ -449,7 +472,7 @@ async function handleBurnInPreview() {
 
         modals.openBurnInPreview(previewUrl, () => {
             if (!confirmSignedPdfExport(session)) return;
-            triggerBrowserDownload(blob, `BurnIn_${document.title}`, true)
+            downloadAs(blob, `BurnIn_${document.title}`, true)
                 .then(async downloadedFilename => {
                     if (!downloadedFilename) return;
                     await storageService.registerDocument(documentId, {
@@ -600,20 +623,6 @@ async function drawStoredOverlays(pdfDoc) {
             }));
         }
     }
-}
-
-async function triggerBrowserDownload(blob, filename, saveAs = false) {
-    if (typeof chrome !== 'undefined' && chrome.downloads) {
-        return downloadAndGetFilename(blob, filename, saveAs);
-    }
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    return null;
 }
 
 // =========================================================================
