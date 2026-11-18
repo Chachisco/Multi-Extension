@@ -42,6 +42,9 @@ export class Modals {
         this.refTextLayer = document.getElementById('ref-text-layer');
         this.refScale = 1.5;
         this.refCurrentPage = 1;
+        this.refRenderTask = null;
+        this.refWheelTimer = null;
+        this.refRenderId = 0;
 
         // 5. Consola e Histórico de Logs
         this.cmdConsole = document.getElementById('cmd-console');
@@ -197,6 +200,37 @@ export class Modals {
     // 4. JANELA FLUTUANTE DE REFERÊNCIA (PREVIEW RÁPIDO / SPLIT-SCREEN)
     // =========================================================================
     _setupReferencePreview() {
+        document.getElementById('reference-preview')?.addEventListener('wheel', e => {
+            if (!e.ctrlKey) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            this.refScale = Math.max(0.1, Math.min(5.0, this.refScale + delta));
+
+            // Atualiza logo o texto do input de zoom para sentires resposta instantânea
+            if (this.refZoom) {
+                this.refZoom.value = `${Math.round(this.refScale * 100)}%`;
+            }
+
+            // Debounce: só manda desenhar no canvas quando a rajada de scroll parar (40ms)
+            clearTimeout(this.refWheelTimer);
+            this.refWheelTimer = setTimeout(() => {
+                this.showReferencePreview(this.refCurrentPage);
+            }, 40);
+        });
+
+        window.addEventListener('preview-zoom', e => {
+            const { delta, reset } = e.detail;
+            if (reset) {
+                this.refScale = 1.5; // valor padrão do preview
+            } else {
+                const newScale = this.refScale + delta;
+                this.refScale = Math.max(0.1, Math.min(5.0, newScale));
+            }
+            this.showReferencePreview(this.refCurrentPage);
+        });
+
         document.getElementById('btn-close-ref')?.addEventListener('click', () => {
             this.refPreview?.classList.add('hidden');
             document.body.classList.remove('split-mode');
@@ -212,12 +246,12 @@ export class Modals {
         });
 
         document.getElementById('btn-ref-zoom-in')?.addEventListener('click', () => {
-            this.refScale = Math.min(5.0, this.refScale + 0.25);
+            this.refScale = Math.min(5.0, this.refScale + 0.1);
             this.showReferencePreview(this.refCurrentPage);
         });
 
         document.getElementById('btn-ref-zoom-out')?.addEventListener('click', () => {
-            this.refScale = Math.max(0.5, this.refScale - 0.25);
+            this.refScale = Math.max(0.5, this.refScale - 0.1);
             this.showReferencePreview(this.refCurrentPage);
         });
 
@@ -270,33 +304,48 @@ export class Modals {
         const pdfDoc = this.state.currentSession?.pdfDoc;
         if (!this.refPreview || !pdfDoc) return;
         
+        const renderId = ++this.refRenderId;
         const totalPages = pdfDoc.numPages;
         
-        this.refCurrentPage=pageNum
+        this.refCurrentPage = pageNum;
         if (this.refPageInput) {
             this.refPageInput.value = pageNum;
             this.refPageInput.max = totalPages;
         }
         if (this.refPageCount) this.refPageCount.textContent = totalPages;
-
         if (this.refZoom) this.refZoom.value = `${Math.round(this.refScale * 100)}%`;
 
         this.refPreview.classList.remove('hidden');
 
+        if (this.refRenderTask) {
+            this.refRenderTask.cancel();
+            this.refRenderTask = null;
+        }
+
         try {
             const page = await pdfDoc.getPage(pageNum);
-            const vp = page.getViewport({ scale: this.refScale, rotation: (page.rotate || 0) + this.state.pageRotation });
+            if (renderId !== this.refRenderId) return;
 
+            const vp = page.getViewport({ scale: this.refScale, rotation: (page.rotate || 0) + this.state.pageRotation });
             const dpr = window.devicePixelRatio || 1;
+
             this.refCanvas.width = Math.floor(vp.width * dpr);
             this.refCanvas.height = Math.floor(vp.height * dpr);
             this.refCanvas.style.width = `${Math.floor(vp.width)}px`;
             this.refCanvas.style.height = `${Math.floor(vp.height)}px`;
 
             const ctx = this.refCanvas.getContext('2d', { alpha: false });
-            await page.render({ canvasContext: ctx, viewport: vp, transform: [dpr, 0, 0, dpr, 0, 0] }).promise;
 
-            // Scroll para a posição certa do elemento
+            this.refRenderTask = page.render({
+                canvasContext: ctx,
+                viewport: vp,
+                transform: [dpr, 0, 0, dpr, 0, 0]
+            });
+
+            await this.refRenderTask.promise;
+            this.refRenderTask = null;
+            if (renderId !== this.refRenderId) return;
+
             if (destY !== null && destY !== undefined) {
                 const bodyContainer = this.refPreview.querySelector('.ref-body');
                 const htmlY = vp.height - (destY * this.refScale);
@@ -304,6 +353,9 @@ export class Modals {
             }
 
         } catch (e) {
+            if (e.name === 'RenderingCancelledException') {
+                return;
+            }
             logger.error('Erro ao renderizar pré-visualização de referência', e);
         }
     }

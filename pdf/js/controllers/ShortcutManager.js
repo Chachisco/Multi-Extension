@@ -17,10 +17,10 @@ export class ShortcutManager {
             { key: 'y', ctrl: true, shift: false, action: () => this.state.currentSession?.history.redo() },
 
             // Zoom
-            { key: '+', ctrl: true, action: () => this.engine.updateZoom(this.state.currentScale + 0.1) },
-            { key: '=', ctrl: true, action: () => this.engine.updateZoom(this.state.currentScale + 0.1) },
-            { key: '-', ctrl: true, action: () => this.engine.updateZoom(this.state.currentScale - 0.1) },
-            { key: '0', ctrl: true, action: () => this.engine.updateZoom(1.0) },
+            { key: '+', ctrl: true, action: () => this._handleZoom(0.1) },
+            { key: '=', ctrl: true, action: () => this._handleZoom(0.1) },
+            { key: '-', ctrl: true, action: () => this._handleZoom(-0.1) },
+            { key: '0', ctrl: true, action: () => this._handleZoom(0, true) },
 
             // Modos e Navegação
             { key: 'h', ctrl: false, action: () => window.dispatchEvent(new CustomEvent('cycle-header-mode')) },
@@ -36,6 +36,10 @@ export class ShortcutManager {
 
         this._initListeners();
     }
+
+    // importShortcuts
+    // updateShortcuts
+    // exportShortcuts or updateFile
 
     _initListeners() {
         // 1. Pressed keys
@@ -105,5 +109,15 @@ export class ShortcutManager {
         const total = this.state.currentSession?.pdfDoc?.numPages || 1;
         const next = Math.max(1, Math.min(total, current + delta));
         jumpTo(next, { align: 'top' });
+    }
+
+    _handleZoom(delta, reset=false) {
+        const preview = document.getElementById('reference-preview');
+        const hover = preview && !preview.classList.contains('hidden') && preview.matches(':hover');
+        if (hover) window.dispatchEvent(new CustomEvent('preview-zoom', { detail: { delta, reset } }));
+        else {
+            if (reset) this.engine.updateZoom(1.0);
+            else this.engine.updateZoom(this.state.currentScale + delta);
+        }
     }
 }
