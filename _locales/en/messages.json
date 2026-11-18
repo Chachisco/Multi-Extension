@@ -62,7 +62,6 @@
   "btn_preview_confirm": { "message": "Confirm and Save" },
 
   "btn_ref_prev": { "message": "Previous Page" },
-  "ref_preview_title": { "message": "Preview" },
   "btn_ref_next": { "message": "Next Page" },
   "btn_ref_zoom_out": { "message": "Zoom Out" },
   "btn_ref_zoom_in": { "message": "Zoom In" },

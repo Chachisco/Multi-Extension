@@ -62,7 +62,6 @@
   "btn_preview_confirm": { "message": "Confirmar e Guardar" },
 
   "btn_ref_prev": { "message": "Página Anterior" },
-  "ref_preview_title": { "message": "Pré-visualização" },
   "btn_ref_next": { "message": "Página Seguinte" },
   "btn_ref_zoom_out": { "message": "Menos Zoom" },
   "btn_ref_zoom_in": { "message": "Mais Zoom" },

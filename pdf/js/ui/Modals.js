@@ -35,8 +35,9 @@ export class Modals {
 
         // 4. Elementos da Janela de Referência Flutuante (Preview rápido)
         this.refPreview = document.getElementById('reference-preview');
-        this.refPageNumber = document.getElementById('ref-page-number');
-        this.refZoomDisplay = document.getElementById('ref-zoom-display');
+        this.refPageInput = document.getElementById('ref-page-input');
+        this.refPageCount = document.getElementById('ref-page-count');
+        this.refZoom = document.getElementById('ref-zoom');
         this.refCanvas = document.getElementById('ref-canvas');
         this.refTextLayer = document.getElementById('ref-text-layer');
         this.refScale = 1.5;
@@ -224,16 +225,61 @@ export class Modals {
             document.body.classList.toggle('split-mode');
         });
 
+        if(this.refPageInput){
+            this.refPageInput.onchange = () => {
+                const total = this.state.currentSession?.pdfDoc?.numPages || 1;
+                let page = parseInt(this.refPageInput.value, 10);
+                
+                // Valida se é um número e limita entre 1 e o total
+                if (isNaN(page) || page < 1) page = 1;
+                if (page > total) page = total;
+
+                this.showReferencePreview(page);
+            };
+
+            this.refPageInput.onkeydown = e => {
+                if (e.key === 'Enter') {
+                    this.refPageInput.blur();
+                }
+            };
+        }
+
+        if (this.refZoom) {
+            this.refZoom.onchange = () => {
+                const value = parseInt(this.refZoom.value, 10);
+                if (!isNaN(value)) {
+                    const newScale = value / 100;
+                    this.refScale = Math.max(0.1, Math.min(5.0, newScale));
+
+                    this.showReferencePreview(this.refCurrentPage);
+                }
+            };
+
+            // Para atualizar logo ao carregar na tecla Enter:
+            this.refZoom.onkeydown = e => {
+                if (e.key === 'Enter') {
+                    this.refZoom.blur(); // Dispara o onchange automaticamente
+                }
+            };
+        }
+
         this._setupWindowResizers();
     }
 
     async showReferencePreview(pageNum, labelText = null, destY = null) {
         const pdfDoc = this.state.currentSession?.pdfDoc;
         if (!this.refPreview || !pdfDoc) return;
+        
+        const totalPages = pdfDoc.numPages;
+        
+        this.refCurrentPage=pageNum
+        if (this.refPageInput) {
+            this.refPageInput.value = pageNum;
+            this.refPageInput.max = totalPages;
+        }
+        if (this.refPageCount) this.refPageCount.textContent = totalPages;
 
-        this.refCurrentPage = pageNum;
-        if (this.refPageNumber) this.refPageNumber.textContent = pageNum;
-        if (this.refZoomDisplay) this.refZoomDisplay.textContent = `${Math.round(this.refScale * 100)}%`;
+        if (this.refZoom) this.refZoom.value = `${Math.round(this.refScale * 100)}%`;
 
         this.refPreview.classList.remove('hidden');
 

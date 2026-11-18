@@ -107,6 +107,28 @@
     transform: translateY(20px);
 }
 
+#ref-page-input{ background: #444; border: none; color: white; width: 30px; text-align: center; border-radius: 3px; }
+#ref-page-input::-webkit-outer-spin-button,
+#ref-page-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#ref-page-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+#ref-zoom{ background: #444; border: none; color: white; width: 45px; text-align: center; border-radius: 3px; }
+#ref-zoom::-webkit-outer-spin-button,
+#ref-zoom::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#ref-zoom[type=number] {
+  -moz-appearance: textfield;
+}
+
 .resizer-top {
     position: absolute; top: 0; left: 0; right: 0; height: 5px;
     cursor: n-resize; z-index: 10;
