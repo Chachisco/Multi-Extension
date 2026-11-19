@@ -52,7 +52,7 @@ export class Modals {
         this.logContent = document.getElementById('log-content');
         this.btnLogToggle = document.getElementById('btn-log-history');
         this.btnCloseLogs = document.getElementById('btn-close-logs');
-        this.logFilterCurrent = document.getElementById('log-filter-current');
+        this.logFilterDebug = document.getElementById('log-filter-debug');
 
         this._initEvents();
     }
@@ -419,13 +419,13 @@ export class Modals {
             };
         }
 
-        if (this.logFilterCurrent) {
-            this.logFilterCurrent.onchange = () => this.renderLogs();
+        if (this.logFilterDebug) {
+            this.logFilterDebug.onchange = () => this.renderLogs();
         }
     }
 
     _showToast(entry) {
-        if (!this.cmdConsole || entry.level === 'debug') return;
+        if (!this.cmdConsole || entry.isDebug || entry.level === 'debug') return;
 
         const toast = document.createElement('div');
         toast.className = `cmd-msg ${entry.level}`;
@@ -442,16 +442,23 @@ export class Modals {
 
     _appendLogItem(entry) {
         if (!this.logContent) return;
-        const currentFile = this.state.currentSession?.filename || 'Sistema';
-        if (this.logFilterCurrent?.checked && entry.file !== currentFile) return;
+
+        const currentFile = logger.currentFilename || this.state.currentSession?.filename || 'Sistema';
+        if (entry.file !== currentFile) return;
+
+        const showDebug = document.getElementById('log-filter-debug')?.checked;
+        if (entry.isDebug && !showDebug) return;
 
         const div = document.createElement('div');
-        div.className = `log-item ${entry.level}`;
+        div.className = 'log-item';
         div.title = t('click_to_copy_log', 'Clica para copiar o registo');
+        
+        // [Level] [time] (file) message & stack
         div.innerHTML = `
-            <span class="time">[${entry.getFormattedTime()}]</span>
-            <span class="file">(${entry.file})</span>
-            ${entry.message}
+            <span class="log-badge ${entry.level}">[${entry.level.toUpperCase()}]</span>
+            <span class="log-time">[${entry.getFormattedTime()}]</span>
+            <span class="log-file">(${entry.file})</span>
+            <span class="log-text">${entry.message}</span>
         `;
 
         div.onclick = async () => {
@@ -467,8 +474,8 @@ export class Modals {
     renderLogs() {
         if (!this.logContent) return;
         this.logContent.innerHTML = '';
-        const currentFile = this.state.currentSession?.filename || 'Sistema';
-        const filter = this.logFilterCurrent?.checked ? currentFile : null;
+        const currentFile = logger.currentFilename || this.state.currentSession?.filename || 'Sistema';
+        const filter = this.logFilterDebug?.checked ? currentFile : null;
 
         const list = logger.getLogs(filter);
         if (list.length === 0) {

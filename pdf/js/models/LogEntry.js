@@ -9,10 +9,11 @@ export const LogLevel = Object.freeze({
 export class LogEntry {
     /**
      * @param {Object} params
-     * @param {string} params.level - 'info' | 'warning' | 'error' | 'success' | 'debug'
+     * @param {string} params.level - 'info' | 'warning' | 'error' | 'success'
      * @param {string} params.message
      * @param {string} [params.details='']
      * @param {string} [params.file='']
+     * @param {boolean} params.isDebug - True | False
      * @param {Date} [params.timestamp]
      */
     constructor({
@@ -20,12 +21,14 @@ export class LogEntry {
         message = '',
         details = '',
         file = 'Sistema',
+        isDebug = false,
         timestamp = new Date()
     } = {}) {
         this.level = this._normalizeLevel(level);
         this.message = message;
         this.details = typeof details === 'object' ? JSON.stringify(details, null, 2) : String(details || '');
         this.file = file || 'Sistema';
+        this.isDebug = Boolean(isDebug);
         this.timestamp = timestamp instanceof Date ? timestamp : new Date();
     }
 
@@ -46,7 +49,7 @@ export class LogEntry {
      * Texto formatado para cópia direta para a área de transferência
      */
     toClipboardString() {
-        let text = `[${this.getFormattedTime()}][${this.level.toUpperCase()}][${this.file}] ${this.message}`;
+        let text = `[${this.level.toUpperCase()}][${this.getFormattedTime()}][${this.file}] ${this.message}`;
         if (this.details) {
             text += `\n\nDetalhes:\n${this.details}`;
         }
