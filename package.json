@@ -1,0 +1,23 @@
+{
+  "name": "multi_extension",
+  "version": "1.0.0",
+  "description": "An extension that combines a custom PDF viewer and editor and a multi-track web search engine.",
+  "main": "background.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chachisco/Multi-Extension.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Chachisco/Multi-Extension/issues"
+  },
+  "homepage": "https://github.com/Chachisco/Multi-Extension#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6"
+  }
+}
