@@ -131,8 +131,10 @@ export class Overlays {
         document.addEventListener('mouseup', event => this._handleTextSelection(event));
 
         // Atualização da régua lateral quando notas ou marcadores mudam
-        window.addEventListener('notes-updated', () => {
-            this._refreshPageOverlays('notes').catch(error => logger.error('Não foi possível atualizar as notas visíveis.', error));
+        window.addEventListener('notes-updated', event => {
+            if (event.detail?.shouldRefresh) {
+                this._refreshPageOverlays('notes').catch(error => logger.error('Não foi possível atualizar as notas visíveis.', error));
+            }
             this.updateRulerMarkers().catch(error => logger.error('Não foi possível atualizar a régua de notas.', error));
         });
         window.addEventListener('bookmarks-updated', () => {

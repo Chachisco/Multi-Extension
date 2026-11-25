@@ -56,8 +56,9 @@ export class NotesManager extends EventTarget {
         if (!note) return false;
 
         updaterFn(note);
-        await this.storage.savePageItems(this.documentId, pageNum, 'notes', notes);
-        this._emitNotesChange();
+        await this.storage.savePageItems(this.filename, pageNum, 'notes', notes);
+        
+        this._emitNotesChange(false);
         return true;
     }
 
@@ -167,9 +168,10 @@ export class NotesManager extends EventTarget {
         return true;
     }
 
-    _emitNotesChange() {
-        this.dispatchEvent(new CustomEvent('notes-updated'));
-        window.dispatchEvent(new CustomEvent('notes-updated'));
+    _emitNotesChange(shouldRefresh = false) {
+        const event = new CustomEvent('notes-updated', { detail: { shouldRefresh } });
+        this.dispatchEvent(event);
+        window.dispatchEvent(event);
     }
 
     _emitTextBoxesChange(shouldRefresh = false) {
