@@ -435,7 +435,8 @@ export class Sidebar {
                     htmlY: fig.htmlY,
                     align: 'center',
                     flashX: fig.destX,
-                    flashW: fig.destW
+                    flashW: fig.destW,
+                    flashH: fig.destH
                 });
             };
 

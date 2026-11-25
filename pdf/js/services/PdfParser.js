@@ -3,7 +3,6 @@ import { BibliographyItem } from '../models/BibliographyItem.js';
 
 export class PdfParser {
     constructor() {
-        // Detection patterns for each element
         this.patterns = [
             {
                 type: ElementType.FIGURE,
@@ -19,11 +18,10 @@ export class PdfParser {
             },
             {
                 type: ElementType.OTHER,
-                regex: /\b(?:Alg(?:orithm|oritmo)?\.?|Scheme|Esquema|Listing|Listagem|Code|C[óo]digo|Snippet|App(?:endix)?|Ap[êe]ndice|Annex|Anexo|Box|Caixa)\s*#?\s*\d+(?:[\.\-_]\d+)*[a-z]?\b/gi
+                regex: /\b(?:Appendix|Ap[êe]ndice|App\.\s*|Annex|Anexo|Box|Caixa|Alg(?:orithm|oritmo)?\.?|Scheme|Esquema|Listing|Listagem|Code|C[óo]digo|Snippet)\s*#?\s*\d+(?:[\.\-_]\d+)*[a-z]?\b/gi
             }
         ];
 
-        // Expressions to distinguish labels from mentions
         this.captionSeparatorRegex = /^\s*[:\.\-—–]\s+[A-ZÁÉÍÓÚÂÊÔÃÕ]/;
         this.mentionPrefixRegex = /(?:ver|veja|vide|see|in|on|at|na|no|da|do|pela|pelo|from|of|\()\s*$/i;
         this.mentionVerbRegex = /^\s+(?:mostra|indica|apresenta|ilustra|demonstra|shows|presents|indicates|illustrates|depicts|is|are|foi|foram)\b/i;
@@ -38,32 +36,42 @@ export class PdfParser {
     async extractElements(pdfDoc, onProgress = null) {
         if (!pdfDoc) return [];
         const totalPages = pdfDoc.numPages;
-        const results = [];
+        const rawResults = [];
 
         for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
             const pageElements = await this.extractPageElements(pdfDoc, pageNum);
-            results.push(...pageElements);
+            rawResults.push(...pageElements);
 
             if (typeof onProgress === 'function') {
                 onProgress(pageNum, totalPages);
             }
         }
 
-        return results;
+        const captionMap = new Map();
+        const finalResults = [];
+
+        for (const el of rawResults) {
+            if (!el.isCaption) {
+                finalResults.push(el);
+                continue;
+            }
+
+            const tagKey = `${el.type}_${el.matchText.toLowerCase().replace(/\s+/g, '')}`;
+            if (!captionMap.has(tagKey)) {
+                captionMap.set(tagKey, el);
+                finalResults.push(el);
+            }
+        }
+
+        return finalResults;
     }
 
-    /**
-     * Analyze one page
-     * @param {Object} pdfDoc
-     * @param {number} pageNum
-     * @returns {Promise<PdfElement[]>}
-     */
     async extractPageElements(pdfDoc, pageNum) {
         const page = await pdfDoc.getPage(pageNum);
         const textContent = await page.getTextContent();
         
         const { fullText, textMapping } = this._buildTextWithCoordinates(textContent);
-        const elements = [];
+        const candidates = [];
 
         for (const { type, regex } of this.patterns) {
             let match;
@@ -88,21 +96,60 @@ export class PdfParser {
 
                 const mapItem = textMapping.slice().reverse().find(m => m.index <= matchStart) || textMapping[0];
 
-                elements.push(new PdfElement({
-                    pageNum,
-                    type,
-                    isCaption,
-                    matchText: match[0],
-                    fullText: context,
-                    destX: mapItem ? mapItem.x : null,
-                    destY: mapItem ? mapItem.y : null,
-                    destW: mapItem ? mapItem.w : 40,
-                    isManual: false
-                }));
+                const precedingWindow = fullText.substring(Math.max(0, matchStart - 600), matchStart);
+                const isNearPeerReviewHeader = /FOR\s+PEER\s+REVIEW/i.test(precedingWindow);
+
+                candidates.push({
+                    element: new PdfElement({
+                        pageNum,
+                        type,
+                        isCaption,
+                        matchText: match[0],
+                        fullText: context,
+                        destX: mapItem ? mapItem.x : null,
+                        destY: mapItem ? mapItem.y : null,
+                        destW: mapItem ? mapItem.w : 40,
+                        destH: mapItem ? mapItem.h : 14,
+                        isManual: false
+                    }),
+                    isNearPeerReviewHeader
+                });
             }
         }
 
-        return elements;
+        const pageElements = [];
+        const groupedCaptions = new Map();
+
+        candidates.forEach(cand => {
+            if (!cand.element.isCaption) {
+                pageElements.push(cand.element);
+                return;
+            }
+
+            const tag = `${cand.element.type}_${cand.element.matchText.toLowerCase().replace(/\s+/g, '')}`;
+            if (!groupedCaptions.has(tag)) {
+                groupedCaptions.set(tag, []);
+            }
+            groupedCaptions.get(tag).push(cand);
+        });
+
+        // Para cada grupo de legendas:
+        groupedCaptions.forEach(matches => {
+            if (matches.length === 1) {
+                // Se só há 1 legenda desta figura na página, fica com ela!
+                pageElements.push(matches[0].element);
+            } else {
+                // Se há DUAS (uma real e uma fantasma), escolhe a que NÃO está colada ao "FOR PEER REVIEW"!
+                const cleanMatch = matches.find(m => !m.isNearPeerReviewHeader);
+                if (cleanMatch) {
+                    pageElements.push(cleanMatch.element);
+                } else {
+                    pageElements.push(matches[0].element); // Fallback
+                }
+            }
+        });
+
+        return pageElements;
     }
 
     _determineIfCaption(type, fullText, matchStart, matchEnd, prefix, suffix) {
@@ -130,12 +177,6 @@ export class PdfParser {
         return false;
     }
 
-    /**
-     * Searches document last pages for the references
-     * @param {Object} pdfDoc
-     * @param {number} [maxPagesToScan=20] - Max num of pages from end to search for bib
-     * @returns {Promise<BibliographyItem[]>}
-     */
     async extractBibliography(pdfDoc, maxPagesToScan = 20) {
         if (!pdfDoc) return [];
         
@@ -154,25 +195,26 @@ export class PdfParser {
                     fullText += ' ';
                     continue;
                 }
+                const fontHeight = Math.abs(item.transform[3]) || Math.abs(item.transform[0]) || 12;
                 textMapping.push({
                     index: fullText.length,
                     pageNum: i,
                     x: item.transform[4],
                     y: item.transform[5],
-                    w: item.width || 50
+                    w: item.width || 50,
+                    h: fontHeight
                 });
                 fullText += item.str + ' ';
             }
             fullText += '\n\n';
         }
 
-        // 2. Searches numeric sequences like: [1], [2] ou 1., 2.
         const potentialRefRegex = /(?:\[(\d+)\]|\b(\d+)\.\s)/g;
         let match;
         const sequences = [];
         let currentSeq = [];
         let expectedNum = 1;
-        let refStyle = null; // 1 -> "[1]", 2 -> "1."
+        let refStyle = null;
 
         while ((match = potentialRefRegex.exec(fullText)) !== null) {
             const num = parseInt(match[1] || match[2], 10);
@@ -263,11 +305,14 @@ export class PdfParser {
                 continue;
             }
 
+            const fontHeight = Math.abs(item.transform[3]) || Math.abs(item.transform[0]) || 12;
+
             textMapping.push({
                 index: fullText.length,
                 x: item.transform[4],
                 y: item.transform[5],
-                w: item.width || 40
+                w: item.width || 40,
+                h: fontHeight
             });
 
             fullText += item.str;

@@ -33,6 +33,7 @@ export class PdfElement extends BaseItem {
         destX = null,
         destY = null,
         destW = null,
+        destH = null,
         htmlY = null
     } = {}) {
         super({
@@ -53,6 +54,7 @@ export class PdfElement extends BaseItem {
         this.destX = destX !== null ? Number(destX) : null;
         this.destY = destY !== null ? Number(destY) : null;
         this.destW = destW !== null ? Number(destW) : null;
+        this.destH = destH !== null ? Number(destH) : null;
 
         // Coordenada visual percentual de ecrã (se inserido manualmente)
         this.htmlY = htmlY !== null ? Number(htmlY) : null;
