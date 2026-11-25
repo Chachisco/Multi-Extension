@@ -1,0 +1,126 @@
+#reference-preview {
+    position: fixed;
+    bottom: 20px;
+    right: 18px;
+    width: 45%;
+    height: 60%;
+    min-width: 300px;
+    min-height: 400px;
+    max-width: 98%;
+    max-height: 91.5%;
+    resize: none !important;
+    background: #252526;
+    border: 1px solid #444;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+    z-index: 5000;
+    overflow: hidden;
+    transition: opacity 0.2s, transform 0.2s;
+    scrollbar-color: #555 #1e1e1e;
+}
+#reference-preview.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px);
+}
+
+#ref-page-input{ background: #444; border: none; color: white; width: 30px; text-align: center; border-radius: 3px; }
+#ref-page-input::-webkit-outer-spin-button,
+#ref-page-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#ref-page-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+#ref-zoom{ background: #444; border: none; color: white; width: 45px; text-align: center; border-radius: 3px; }
+#ref-zoom::-webkit-outer-spin-button,
+#ref-zoom::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#ref-zoom[type=number] {
+  -moz-appearance: textfield;
+}
+
+.resizer-top {
+    position: absolute; top: 0; left: 0; right: 0; height: 5px;
+    cursor: n-resize; z-index: 10;
+}
+.resizer-left {
+    position: absolute; top: 0; bottom: 0; left: 0; width: 5px;
+    cursor: e-resize; z-index: 10;
+}
+.resizer-top-left {
+    position: absolute; top: 0; left: 0; width: 10px; height: 10px;
+    cursor: nw-resize; z-index: 20;
+}
+
+.ref-body {
+    flex: 1; 
+    overflow: auto; 
+    background: #525659; 
+    padding: 10px;
+    display: flex;
+    text-align: center;
+}
+
+#ref-canvas {
+    background: white; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3); 
+    border-radius: 2px;
+    margin: 0 auto;
+    display: block;
+}
+
+.ref-header {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #1e1e1e; padding: 10px 15px; border-bottom: 1px solid #333; color: white;
+    cursor: default; gap: 10px;
+}
+.ref-header-group { display: flex; align-items: center; gap: 4px; }
+.ref-header button {
+    background: transparent; border: none; color: #ccc; cursor: pointer; 
+    padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: 0.15s;
+}
+.ref-header button:hover { background: #0376db; color: white; }
+.ref-header button.btn-close-hover:hover { background: #e51400; }
+.ref-header button svg { width: 16px; height: 16px; }
+
+body.split-mode #viewport {
+    width: 50vw !important;
+}
+/* Se a barra esquerda estiver aberta, divide o espaço restante! */
+body.sidebar-open-left.split-mode #viewport {
+    width: calc(50vw - 125px) !important;
+}
+body.sidebar-open-right.split-mode #viewport {
+    width: calc(50vw - 125px) !important;
+}
+
+body.split-mode #reference-preview {
+    top: 40px !important;
+    left: 50vw !important;
+    width: 50vw !important;
+    height: calc(100vh - 40px) !important;
+    bottom: auto !important;
+    right: auto !important;
+    resize: none !important;
+    border-radius: 0 !important;
+    box-shadow: -2px 0 15px rgba(0,0,0,0.4) !important;
+    transform: none !important;
+    border: none !important;
+    border-left: 1px solid #444 !important;
+}
+
+/* Desliga as pegas de redimensionamento manual no Split Mode */
+body.split-mode .resizer-top,
+body.split-mode .resizer-left,
+body.split-mode .resizer-top-left {
+    display: none !important;
+}
