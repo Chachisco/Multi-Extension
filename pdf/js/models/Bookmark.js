@@ -12,12 +12,16 @@ export class Bookmark extends BaseItem {
      * @param {string} [params.groupId='default']
      * @param {string} [params.color='#666666']
      */
-    constructor({ id = null, pageNum, y, x = 0, title = '', groupId = 'default', color = '#666666' } = {}) {
+    constructor({ id = null, pageNum, y = 0, x = 0, pdfX = null, pdfY = null, pdfW = null, rects = null, title = '', groupId = 'default', color = '#666666' } = {}) {
         super({ id, pageNum, x, y });
         this.title = (title || 'Marcador sem nome').trim();
         this.groupId = groupId || 'default';
         this.color = color;
         this.type = 'bookmark';
+        this.pdfX = pdfX !== null ? Number(pdfX) : null;
+        this.pdfY = pdfY !== null ? Number(pdfY) : null;
+        this.pdfW = pdfW !== null ? Number(pdfW) : null;
+        this.rects = Array.isArray(rects) ? rects : null;
     }
 
     setTitle(newTitle) {
@@ -39,6 +43,10 @@ export class Bookmark extends BaseItem {
             id: this.id,
             x: this.x,
             y: this.y,
+            pdfX: this.pdfX,
+            pdfY: this.pdfY,
+            pdfW: this.pdfW,
+            rects: this.rects,
             title: this.title,
             type: 'bookmark',
             groupId: this.groupId,
@@ -56,6 +64,10 @@ export class Bookmark extends BaseItem {
             pageNum: pageNum ?? raw.pageNum ?? 1,
             x: raw.x ?? 0,
             y: raw.y ?? 0,
+            pdfX: raw.pdfX ?? null,
+            pdfY: raw.pdfY ?? null,
+            pdfW: raw.pdfW ?? null,
+            rects: raw.rects ?? null,
             title: raw.title ?? '',
             groupId: raw.groupId ?? 'default',
             color: raw.color ?? '#666666'

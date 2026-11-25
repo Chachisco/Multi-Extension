@@ -789,10 +789,35 @@ export class Overlays {
         const pageNum = Number(wrapper.dataset.pageNumber);
         const addBookmark = async () => {
             const manager = this.state.currentSession?.bookmarks;
-            if (!manager) return;
+            const session = this.state.currentSession;
+            if (!manager || !session?.pdfDoc) return;
+
+            const page = await session.pdfDoc.getPage(pageNum);
+            const vp = page.getViewport({ scale: this.state.currentScale, rotation: (page.rotate || 0) + this.state.pageRotation });
             const pageRect = wrapper.getBoundingClientRect();
-            const y = Math.max(0, Math.min(100, ((anchor.top - pageRect.top) / pageRect.height) * 100));
-            await manager.addBookmark(pageNum, y, text.slice(0, 30));
+
+            const cleanLines = mergeClientRects([...range.getClientRects()]);
+
+            const rects = cleanLines.map(r => ({
+                x: ((r.left - pageRect.left) / pageRect.width) * 100,
+                y: ((r.top - pageRect.top) / pageRect.height) * 100,
+                w: (r.width / pageRect.width) * 100,
+                h: (r.height / pageRect.height) * 100
+            }));
+
+            const clickX = anchor.left - pageRect.left;
+            const clickY = anchor.top - pageRect.top;
+            const [pdfX, pdfY] = vp.convertToPdfPoint(clickX, clickY);
+
+            const htmlY = Math.max(0, Math.min(100, (clickY / pageRect.height) * 100));
+
+            await manager.addBookmark(pageNum, htmlY, text.slice(0, 30), {
+                pdfX,
+                pdfY,
+                pdfW: anchor.width / this.state.currentScale,
+                rects
+            });
+
             this.selectionToolbar.hide();
             window.getSelection()?.removeAllRanges();
         };
@@ -921,7 +946,7 @@ export class Overlays {
         const layer = wrapper.querySelector('.annotation-layer');
         const wrapperRect = wrapper.getBoundingClientRect();
 
-        const rects = [...range.getClientRects()].filter(r => r.width && r.height);
+        const rects = mergeClientRects([...range.getClientRects()]);
         const annotations = this.state.annotations[pageNum] || [];
         const addedAnnotations = [];
         const marks = [];
@@ -1293,7 +1318,7 @@ export class Overlays {
     }
 
     // =========================================================================
-    // 6. MARCADORES VISUAIS DA PÁGINA (BOOKMARKS)
+    // 6. BOOKMARKS
     // =========================================================================
     async _loadBookmarks(pageNum, wrapper) {
         const overlay = wrapper.querySelector('.bookmarks-overlay');
@@ -1332,7 +1357,15 @@ export class Overlays {
                         }
                     }
                 ]);
-                jumpTo(pageNum, { htmlY: bmk.y, align: 'center' });
+                jumpTo(pageNum, { 
+                    pdfX: bmk.pdfX,
+                    pdfY: bmk.pdfY,
+                    pdfW: bmk.pdfW,
+                    htmlY: bmk.y,
+                    rects: bmk.rects,
+                    align: 'center',
+                    origin: 'top'
+                });
             };
             overlay.appendChild(icon);
         });
@@ -1420,7 +1453,15 @@ export class Overlays {
                 marker.className = 'bookmark-marker';
                 marker.style.top = `${Math.max(0.5, Math.min(99.2, pct))}%`;
                 marker.title = `Marcador (Pág. ${b.pageNum}): ${b.title}`;
-                marker.onclick = () => jumpTo(b.pageNum, { htmlY: b.y, align: 'center' });
+                marker.onclick = () => jumpTo(b.pageNum, { 
+                    pdfX: b.pdfX,
+                    pdfY: b.pdfY,
+                    pdfW: b.pdfW,
+                    htmlY: b.y, 
+                    rects: b.rects,
+                    align: 'center',
+                    origin: 'top'
+                });
                 this.notesSidebar.appendChild(marker);
             });
         }
@@ -1606,4 +1647,62 @@ export class Overlays {
             document.addEventListener('mouseup', onMouseUp);
         };
     }
+}
+
+/**
+ * Funde múltiplos retângulos de palavras num único retângulo perfeito por cada linha de texto,
+ * eliminando costuras, riscas escuras e sobreposições.
+ */
+function mergeClientRects(rawRects) {
+    if (!rawRects || rawRects.length === 0) return [];
+
+    // Converte e ordena do topo para a base
+    const rects = rawRects
+        .filter(r => r.width > 2 && r.height > 2)
+        .map(r => ({
+            top: r.top,
+            bottom: r.bottom,
+            left: r.left,
+            right: r.right,
+            width: r.width,
+            height: r.height
+        }))
+        .sort((a, b) => a.top - b.top || a.left - b.left);
+
+    const mergedLines = [];
+
+    // 1. Agrupa palavras que pertençam à mesma linha horizontal
+    for (const rect of rects) {
+        const line = mergedLines.find(l => {
+            // Verifica se há sobreposição vertical significativa (pelo menos 40% da altura)
+            const overlap = Math.min(l.bottom, rect.bottom) - Math.max(l.top, rect.top);
+            return overlap > Math.min(l.height, rect.height) * 0.4;
+        });
+
+        if (line) {
+            // Expande a linha para englobar a nova palavra
+            line.left = Math.min(line.left, rect.left);
+            line.right = Math.max(line.right, rect.right);
+            line.top = Math.min(line.top, rect.top);
+            line.bottom = Math.max(line.bottom, rect.bottom);
+            line.width = line.right - line.left;
+            line.height = line.bottom - line.top;
+        } else {
+            mergedLines.push({ ...rect });
+        }
+    }
+
+    // 2. Elimina sobreposições verticais entre linhas consecutivas
+    mergedLines.sort((a, b) => a.top - b.top);
+    for (let i = 0; i < mergedLines.length - 1; i++) {
+        if (mergedLines[i].bottom > mergedLines[i + 1].top) {
+            const mid = (mergedLines[i].bottom + mergedLines[i + 1].top) / 2;
+            mergedLines[i].bottom = mid;
+            mergedLines[i].height = mergedLines[i].bottom - mergedLines[i].top;
+            mergedLines[i + 1].top = mid;
+            mergedLines[i + 1].height = mergedLines[i + 1].bottom - mergedLines[i + 1].top;
+        }
+    }
+
+    return mergedLines;
 }

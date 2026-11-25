@@ -540,7 +540,15 @@ export class Sidebar {
             const info = document.createElement('div');
             info.style.cssText = 'flex:1; cursor:pointer; overflow:hidden; text-overflow:ellipsis;';
             info.innerHTML = `<strong style="color:#aaa;">Pág ${bmk.pageNum}</strong> - <span style="color:#ddd; font-size:12px;">${bmk.title}</span>`;
-            info.onclick = () => jumpTo(bmk.pageNum, { htmlY: bmk.y, align: 'center' });
+            info.onclick = () => jumpTo(bmk.pageNum, { 
+                pdfX: bmk.pdfX,
+                pdfY: bmk.pdfY,
+                pdfW: bmk.pdfW,
+                htmlY: bmk.y,
+                rects: bmk.rects,
+                align: 'center',
+                origin: 'top'
+            });
 
             const actions = document.createElement('div');
             actions.style.cssText = 'display:flex; gap:4px;';
